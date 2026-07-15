@@ -11,6 +11,11 @@ among many, and never the source of truth.
 > manuals, files, measurements, and the people who live there. The LLM
 > reasons over trusted data. It does not invent it.
 
+> **Local-first, offline-capable.** Atlas must boot, run, and serve its
+> home with zero internet connectivity. Anything that needs the internet
+> is an adapter — explicitly installed, explicitly granted egress. The
+> full commitment: [docs/privacy.md](docs/privacy.md).
+
 ## Status
 
 **Milestone 3 — Zero Trust.** Implemented so far:
@@ -67,19 +72,23 @@ monitor is live, you will see:
 atlas-core | Atlas Ready.
 ```
 
-The example echo service then registers itself and begins heartbeating.
-Inspect the system:
+The Event Bus and the example echo service then enroll (receiving their
+certificates from the Atlas CA) and begin heartbeating. Inspect the system:
 
 ```bash
-# Core's own health
-curl http://localhost:8000/v1/system/health
+# Core's own health (liveness is unauthenticated by design)
+curl -k https://localhost:8000/v1/system/health
 
-# Everything Core knows about (requires the bootstrap token)
-curl -H "Authorization: Bearer $ATLAS_BOOTSTRAP_TOKEN" \
-     http://localhost:8000/v1/registry/services
+# Everything else requires an identity. Mint yourself an operator
+# certificate (only the CA-key holder can). The CA lives in the
+# atlas-core-data volume under ca/:
+python scripts/operator_cert.py --ca-dir /path/to/atlas-core-data/ca --out ./operator
+curl --cert operator/operator.crt --key operator/operator.key \
+     --cacert operator/ca.crt https://localhost:8000/v1/registry/services
 ```
 
-Interactive API docs: http://localhost:8000/docs
+Interactive API docs: https://localhost:8000/docs (accept the Atlas CA
+or import `operator/ca.crt` into your trust store).
 
 ## Running the tests
 
@@ -104,6 +113,7 @@ Every Atlas service, forever:
 - **Independent** — every service runs (and fails) on its own.
 - **Health-checked** — every service exposes `GET /healthz`.
 - **Containerized** — every service ships a Dockerfile.
+- **Local-first** — runs with zero internet connectivity; egress is denied at the network layer and granted only to explicit adapters.
 
 ## Security
 
@@ -118,7 +128,7 @@ executed directly — the Planner validates every action (future milestone).
 
 ```
 atlas-os/
-├── docs/                      # Architecture, security, contracts, eventbus, roadmap
+├── docs/                      # Architecture, security, privacy, contracts, eventbus, roadmap
 ├── libs/
 │   └── atlas-sdk/             # Client library (registration + bus clients)
 ├── services/

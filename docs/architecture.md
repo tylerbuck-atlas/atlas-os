@@ -15,6 +15,12 @@ decision follows from this: data flows from trusted sources into governed
 stores; the model consumes and reasons; the Planner validates anything the
 model proposes before it can touch the world.
 
+Atlas is **local-first and offline-capable**: it must boot, run, and
+serve its home with zero internet connectivity. Anything that requires
+the internet is an adapter — explicitly installed, explicitly granted
+egress, individually removable. Enforcement is at the network layer, not
+in documentation. The binding commitment is [privacy.md](privacy.md).
+
 ## 2. Services
 
 Atlas is composed of independent services. Each runs in its own container,

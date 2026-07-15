@@ -1,5 +1,15 @@
 name: atlas-os
 
+# Network topology enforces the Local-First Rule (docs/privacy.md):
+#
+#   atlas       internal-only — service↔service traffic; NO route anywhere
+#   atlas-edge  host/LAN reachability for published ports; NAT masquerade
+#               is DISABLED, so containers cannot INITIATE connections to
+#               the internet or LAN. Inbound published ports still work.
+#
+# A future adapter that legitimately needs the internet must join its own
+# explicitly-defined egress network — one visible place to audit.
+
 services:
   atlas-core:
     build:
@@ -17,7 +27,7 @@ services:
       - "8000:8000"
     volumes:
       - atlas-core-data:/app/data
-    networks: [atlas]
+    networks: [atlas, atlas-edge]
     restart: unless-stopped
 
   atlas-eventbus:
@@ -36,7 +46,7 @@ services:
       - "8200:8200"
     volumes:
       - atlas-eventbus-data:/app/data
-    networks: [atlas]
+    networks: [atlas, atlas-edge]
     depends_on:
       atlas-core:
         condition: service_healthy
@@ -55,7 +65,7 @@ services:
       ATLAS_ECHO_TLS_DIR: /tmp/atlas-tls
     ports:
       - "8100:8100"
-    networks: [atlas]
+    networks: [atlas, atlas-edge]
     depends_on:
       atlas-core:
         condition: service_healthy
@@ -65,6 +75,12 @@ networks:
   atlas:
     name: atlas
     driver: bridge
+    internal: true
+  atlas-edge:
+    name: atlas-edge
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
 
 volumes:
   atlas-core-data:
