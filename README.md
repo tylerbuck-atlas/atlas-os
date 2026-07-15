@@ -18,7 +18,7 @@ among many, and never the source of truth.
 
 ## Status
 
-**Milestone 3 — Zero Trust.** Implemented so far:
+**Milestone 4 — Memory & Assets.** Implemented so far:
 
 - **Atlas Core** — service discovery, registration, health monitoring,
   configuration, token authentication + introspection, plugin loading,
@@ -34,6 +34,10 @@ among many, and never the source of truth.
   service certificates issued at registration, mutual TLS on every
   connection, identity from peer certificates, signed plugins. Bearer
   tokens are retired.
+- **Atlas Memory** — versioned, provenance-stamped, class-aware facts;
+  registry events materialize into queryable system state.
+- **Atlas Asset Manager** — the home's manuals, documents, and photos as
+  content-addressed, integrity-verified truth sources.
 
 Nothing more is implemented yet — deliberately. See [docs/roadmap.md](docs/roadmap.md).
 
@@ -47,11 +51,11 @@ between services.
 |----------------------|---------------------------------------------------|-------------|
 | **Atlas Core**       | Discovery, registration, health, config, auth     | ✅ Milestone 1 |
 | Atlas Planner        | Validates and plans every action                  | planned     |
-| Atlas Memory         | Durable, queryable state                          | planned     |
+| **Atlas Memory**     | Durable, queryable state                          | ✅ Milestone 4 |
 | **Atlas Event Bus**  | Inter-service messaging                           | ✅ Milestone 2 |
 | Atlas Skill Manager  | Capability packages                               | planned     |
 | Atlas Device Manager | Physical/virtual device abstraction               | planned     |
-| Atlas Asset Manager  | Files, manuals, documents                         | planned     |
+| **Atlas Asset Manager** | Files, manuals, documents                      | ✅ Milestone 4 |
 | Atlas Sentinel       | Security monitoring and enforcement               | planned     |
 
 Full details in [docs/architecture.md](docs/architecture.md).
@@ -134,6 +138,8 @@ atlas-os/
 ├── services/
 │   ├── core/                  # Atlas Core (FastAPI)
 │   ├── eventbus/              # Atlas Event Bus
+│   ├── memory/                # Atlas Memory (facts, classes, history)
+│   ├── assets/                # Atlas Asset Manager (files as truth sources)
 │   └── examples/echo/         # Minimal service demonstrating the contract
 ├── docker-compose.yml
 └── .env.example

@@ -36,11 +36,16 @@ the foundation is real.
   kept for development)
 - Signed plugin verification (CA-signed dist RECORDs) + operator certs
 
-## Milestone 4 — Atlas Memory + Asset Manager
+## Milestone 4 — Atlas Memory + Asset Manager ✅
 
-- Durable, queryable system state
-- File/document/manual ingestion with provenance metadata
-- "Truth sources" become first-class, auditable objects
+- `atlas.memory`: durable, versioned, queryable facts with required
+  provenance and enforced data classes; registry events materialized
+  into `system.services` state; class-redacted change events
+- `atlas.assets`: content-addressed (sha256) file store with integrity
+  verification on every read, dedup, tombstones + blob GC
+- Truth sources are first-class, auditable objects; the 4-class privacy
+  model is live in both schemas
+- SDK grows shared service auth + the durable BusOutbox
 
 ## Milestone 5 — Atlas Planner + Sentinel
 

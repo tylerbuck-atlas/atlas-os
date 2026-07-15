@@ -52,6 +52,51 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  atlas-memory:
+    build:
+      context: .
+      dockerfile: services/memory/Dockerfile
+    container_name: atlas-memory
+    environment:
+      ATLAS_BOOTSTRAP_TOKEN: ${ATLAS_BOOTSTRAP_TOKEN:?Set ATLAS_BOOTSTRAP_TOKEN in .env}
+      ATLAS_SECURITY_MODE: ${ATLAS_SECURITY_MODE:-mtls}
+      ATLAS_MEMORY_CORE_URL: https://atlas-core:8000
+      ATLAS_MEMORY_SELF_URL: https://atlas-memory:8300
+      ATLAS_MEMORY_DATABASE_PATH: /app/data/atlas-memory.db
+      ATLAS_MEMORY_TLS_DIR: /app/data/tls
+    ports:
+      - "8300:8300"
+    volumes:
+      - atlas-memory-data:/app/data
+    networks: [atlas, atlas-edge]
+    depends_on:
+      atlas-core:
+        condition: service_healthy
+    restart: unless-stopped
+
+  atlas-assets:
+    build:
+      context: .
+      dockerfile: services/assets/Dockerfile
+    container_name: atlas-assets
+    environment:
+      ATLAS_BOOTSTRAP_TOKEN: ${ATLAS_BOOTSTRAP_TOKEN:?Set ATLAS_BOOTSTRAP_TOKEN in .env}
+      ATLAS_SECURITY_MODE: ${ATLAS_SECURITY_MODE:-mtls}
+      ATLAS_ASSETS_CORE_URL: https://atlas-core:8000
+      ATLAS_ASSETS_SELF_URL: https://atlas-assets:8400
+      ATLAS_ASSETS_DATABASE_PATH: /app/data/atlas-assets.db
+      ATLAS_ASSETS_BLOB_DIR: /app/data/blobs
+      ATLAS_ASSETS_TLS_DIR: /app/data/tls
+    ports:
+      - "8400:8400"
+    volumes:
+      - atlas-assets-data:/app/data
+    networks: [atlas, atlas-edge]
+    depends_on:
+      atlas-core:
+        condition: service_healthy
+    restart: unless-stopped
+
   atlas-echo:
     build:
       context: .
@@ -85,3 +130,5 @@ networks:
 volumes:
   atlas-core-data:
   atlas-eventbus-data:
+  atlas-memory-data:
+  atlas-assets-data:

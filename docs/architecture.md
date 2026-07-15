@@ -31,11 +31,11 @@ versioned APIs.
 |---|---|---|
 | Atlas Core | `atlas.core` | Service registry, discovery, health monitoring, configuration, authentication, plugin loading, boot coordination |
 | Atlas Planner | `atlas.planner` | Turns goals into validated, auditable action plans; the only path from intent to execution |
-| Atlas Memory | `atlas.memory` | Durable, queryable system state and knowledge |
+| Atlas Memory | `atlas.memory` | Durable, queryable system state and knowledge (implemented — see [memory-assets.md](memory-assets.md)) |
 | Atlas Event Bus | `atlas.eventbus` | Asynchronous inter-service messaging (implemented — see [eventbus.md](eventbus.md)) |
 | Atlas Skill Manager | `atlas.skills` | Discoverable, versioned capability packages |
 | Atlas Device Manager | `atlas.devices` | Abstraction over physical and virtual devices |
-| Atlas Asset Manager | `atlas.assets` | Files, manuals, documents, and their metadata |
+| Atlas Asset Manager | `atlas.assets` | Files, manuals, documents, and their metadata (implemented — see [memory-assets.md](memory-assets.md)) |
 | Atlas Sentinel | `atlas.sentinel` | Security monitoring, anomaly detection, enforcement |
 
 ### Communication rules

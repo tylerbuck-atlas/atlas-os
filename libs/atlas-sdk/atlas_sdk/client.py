@@ -148,6 +148,12 @@ class AtlasService:
             return None
         return self.tls.client_ssl_context()
 
+    def bus_credentials(self) -> tuple[str | None, ssl.SSLContext | None]:
+        """(token, ssl_context) for talking to Core/the bus — exactly one is set."""
+        if self.security_mode == "mtls":
+            return None, self.client_ssl_context()
+        return self.service_token, None
+
     # -- internals -----------------------------------------------------------
 
     def _auth_headers(self) -> dict[str, str]:
