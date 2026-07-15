@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atlas-echo"
+version = "0.1.0"
+description = "atlas.echo — reference implementation of the Atlas service contract"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "httpx>=0.27",
+]
+
+[tool.setuptools.packages.find]
+include = ["atlas_echo*"]
