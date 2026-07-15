@@ -6,6 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "atlas-echo"
 version = "0.2.0"
 description = "atlas.echo — reference implementation of the Atlas service contract"
+license = {text = "AGPL-3.0-only"}
+authors = [{name = "Tyler Buck", email = "tyler.buck123@gmail.com"}]
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.110",

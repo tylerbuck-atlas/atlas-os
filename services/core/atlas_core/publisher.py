@@ -1,3 +1,7 @@
+# Copyright (C) 2026 Tyler Buck
+# SPDX-License-Identifier: AGPL-3.0-only
+# This file is part of Atlas OS <https://github.com/tylerbuck-atlas/atlas-os>.
+
 """Outbox publisher: streams Core's event log onto the Atlas Event Bus.
 
 Core writes every event to its durable local log first (the outbox), then

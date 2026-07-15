@@ -1,3 +1,7 @@
+# Copyright (C) 2026 Tyler Buck
+# SPDX-License-Identifier: AGPL-3.0-only
+# This file is part of Atlas OS <https://github.com/tylerbuck-atlas/atlas-os>.
+
 """Data models shared across Atlas Core.
 
 These models define the v1 registry contract. Changing them in a breaking

@@ -6,6 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "atlas-eventbus"
 version = "0.1.0"
 description = "Atlas Event Bus — durable, at-least-once inter-service messaging"
+license = {text = "AGPL-3.0-only"}
+authors = [{name = "Tyler Buck", email = "tyler.buck123@gmail.com"}]
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.110",

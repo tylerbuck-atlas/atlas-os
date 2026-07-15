@@ -1,13 +1,15 @@
 # ATLAS OS
 
-**An AI-native distributed operating system.**
+**An AI-native distributed operating system for the home.**
 
-Atlas is not a chatbot. Atlas is not a home-automation platform. Atlas is an
-operating system for distributed, AI-augmented environments in which the AI
-model is just one service among many — and never the source of truth.
+Atlas is not a chatbot, and not another home-automation dashboard. It is an
+operating system whose domain is the household — its devices, sensors,
+assets, manuals, and knowledge — in which the AI model is just one service
+among many, and never the source of truth.
 
-> Truth comes from sensors, databases, APIs, manuals, files, measurements,
-> and user input. The LLM reasons over trusted data. It does not invent it.
+> Truth about your home comes from sensors, databases, APIs, appliance
+> manuals, files, measurements, and the people who live there. The LLM
+> reasons over trusted data. It does not invent it.
 
 ## Status
 
@@ -124,4 +126,9 @@ atlas-os/
 
 ## License
 
-TBD.
+Copyright © 2026 Tyler Buck.
+
+[GNU AGPL-3.0](LICENSE). Atlas OS is free software: run it, study it,
+modify it, share it. If you offer a modified Atlas to others over a
+network, the AGPL requires you to share your modifications under the same
+terms — the home stays open for everyone.

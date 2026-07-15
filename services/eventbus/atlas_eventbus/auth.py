@@ -1,3 +1,7 @@
+# Copyright (C) 2026 Tyler Buck
+# SPDX-License-Identifier: AGPL-3.0-only
+# This file is part of Atlas OS <https://github.com/tylerbuck-atlas/atlas-os>.
+
 """Event Bus authentication.
 
 Zero Trust: the bus holds no secrets and trusts no bearer token on sight.
