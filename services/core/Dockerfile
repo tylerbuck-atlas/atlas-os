@@ -1,3 +1,4 @@
+# Build context: repository root (see docker-compose.yml)
 FROM python:3.11-slim
 
 # Never run as root.
@@ -5,8 +6,8 @@ RUN groupadd --system atlas && useradd --system --gid atlas --create-home atlas
 
 WORKDIR /app
 
-COPY pyproject.toml ./
-COPY atlas_core ./atlas_core
+COPY services/core/pyproject.toml ./
+COPY services/core/atlas_core ./atlas_core
 RUN pip install --no-cache-dir .
 
 RUN mkdir -p /app/data && chown -R atlas:atlas /app

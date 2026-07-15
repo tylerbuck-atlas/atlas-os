@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "atlas-core"
-version = "0.2.0"
-description = "Atlas OS Core — service registry, discovery, health monitoring, and boot coordination"
+name = "atlas-eventbus"
+version = "0.1.0"
+description = "Atlas Event Bus — durable, at-least-once inter-service messaging"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.110",
@@ -14,6 +14,8 @@ dependencies = [
     "pydantic-settings>=2.2",
     "httpx>=0.27",
     "aiosqlite>=0.20",
+    "jsonschema>=4.21",
+    "atlas-sdk",
 ]
 
 [project.optional-dependencies]
@@ -24,7 +26,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["atlas_core*"]
+include = ["atlas_eventbus*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

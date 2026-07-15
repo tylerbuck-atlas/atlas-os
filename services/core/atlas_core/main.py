@@ -19,11 +19,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from . import SERVICE_NAME, __version__
+from .api import auth as auth_api
 from .api import registry as registry_api
 from .api import system as system_api
 from .config import CoreConfig
 from .health import HealthMonitor
 from .plugins import PluginManager
+from .publisher import EventPublisher
 from .registry import ServiceRegistry
 from .store import RegistryStore
 
@@ -79,6 +81,9 @@ async def _lifespan(app: FastAPI):
     monitor = HealthMonitor(app.state.registry, config)
     await monitor.start()
     app.state.health_monitor = monitor
+    publisher = EventPublisher(store, app.state.registry, config)
+    await publisher.start()
+    app.state.event_publisher = publisher
 
     _stage(app, 7, "API")
     log.info("API serving on %s:%s", config.core_host, config.core_port)
@@ -92,6 +97,7 @@ async def _lifespan(app: FastAPI):
     finally:
         app.state.ready = False
         log.info("Atlas Core shutting down")
+        await publisher.stop()
         await monitor.stop()
         await plugin_manager.stop_all(app)
         await store.close()
@@ -122,6 +128,7 @@ def create_app(config: CoreConfig | None = None) -> FastAPI:
 
     app.include_router(system_api.router)
     app.include_router(registry_api.router)
+    app.include_router(auth_api.router)
     return app
 
 

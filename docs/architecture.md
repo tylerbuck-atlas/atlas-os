@@ -26,7 +26,7 @@ versioned APIs.
 | Atlas Core | `atlas.core` | Service registry, discovery, health monitoring, configuration, authentication, plugin loading, boot coordination |
 | Atlas Planner | `atlas.planner` | Turns goals into validated, auditable action plans; the only path from intent to execution |
 | Atlas Memory | `atlas.memory` | Durable, queryable system state and knowledge |
-| Atlas Event Bus | `atlas.eventbus` | Asynchronous inter-service messaging |
+| Atlas Event Bus | `atlas.eventbus` | Asynchronous inter-service messaging (implemented — see [eventbus.md](eventbus.md)) |
 | Atlas Skill Manager | `atlas.skills` | Discoverable, versioned capability packages |
 | Atlas Device Manager | `atlas.devices` | Abstraction over physical and virtual devices |
 | Atlas Asset Manager | `atlas.assets` | Files, manuals, documents, and their metadata |
@@ -107,9 +107,11 @@ is no degraded half-booted mode.
 ```
 
 States: `starting`, `healthy`, `unhealthy`, `unreachable`, `deregistered`.
-Transitions are recorded as events in Core's event log and will be
-published on the Event Bus once it exists (Milestone 2), keeping the
-event-driven contract stable.
+Transitions are recorded as events in Core's durable event log (the
+outbox) and forwarded, in order, to the Atlas Event Bus by Core's
+publisher loop (see [eventbus.md](eventbus.md)). The bus is discovered
+through Core's own registry — no configured address, no hidden
+dependency; without a bus, events wait in the outbox.
 
 ## 4. The service contract
 
@@ -137,9 +139,18 @@ storage behind `/v1/registry` can be swapped without any service noticing
 without requiring a database server. The storage layer is behind a small
 interface; Postgres can replace it later with no API change.
 
-**No Event Bus in Milestone 1.** The milestone is Core booting and
-monitoring. Registry state changes are written to an internal event log
-with the same shape they will have on the bus, so Milestone 2 publishes
+**No Event Bus in Milestone 1.** The milestone was Core booting and
+monitoring. Registry state changes were written to an internal event log
+with the same shape they now have on the bus — Milestone 2 published
 existing events rather than inventing new ones.
 
-**No AI in Milestone 1.** By design. The operating system comes first.
+**No AI in Milestones 1–2.** By design. The operating system comes first.
+
+## 6. Atlas Event Bus (Milestone 2 — implemented)
+
+Durable, pull-based, at-least-once pub/sub with named per-service
+subscriptions, wildcard topic patterns, long-polling, and a versioned
+schema registry that validates payloads at publish time. Callers
+authenticate with their Core-issued service tokens; the bus verifies
+them through Core's `/v1/auth/introspect` and never holds secrets of its
+own. Full design: [eventbus.md](eventbus.md).

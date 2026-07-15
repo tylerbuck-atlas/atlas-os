@@ -11,14 +11,18 @@ model is just one service among many — and never the source of truth.
 
 ## Status
 
-**Milestone 1 — Atlas Core boot.** The current codebase delivers Atlas Core:
-service discovery, registration, health monitoring, configuration, token
-authentication, and a coordinated boot sequence that ends with a single log
-line:
+**Milestone 2 — Atlas Event Bus.** Implemented so far:
 
-```
-Atlas Ready.
-```
+- **Atlas Core** — service discovery, registration, health monitoring,
+  configuration, token authentication + introspection, plugin loading,
+  and a coordinated boot sequence that ends with a single log line:
+  `Atlas Ready.`
+- **Atlas Event Bus** — durable at-least-once pub/sub with per-service
+  subscriptions, wildcard topics, long-polling pull/ack, a versioned
+  schema registry, and Core's registry/health events flowing through it
+  via a durable outbox.
+- **atlas-sdk** — the client library services use to register,
+  heartbeat, and consume the bus.
 
 Nothing more is implemented yet — deliberately. See [docs/roadmap.md](docs/roadmap.md).
 
@@ -33,7 +37,7 @@ between services.
 | **Atlas Core**       | Discovery, registration, health, config, auth     | ✅ Milestone 1 |
 | Atlas Planner        | Validates and plans every action                  | planned     |
 | Atlas Memory         | Durable, queryable state                          | planned     |
-| Atlas Event Bus      | Inter-service messaging                           | planned     |
+| **Atlas Event Bus**  | Inter-service messaging                           | ✅ Milestone 2 |
 | Atlas Skill Manager  | Capability packages                               | planned     |
 | Atlas Device Manager | Physical/virtual device abstraction               | planned     |
 | Atlas Asset Manager  | Files, manuals, documents                         | planned     |
@@ -107,9 +111,12 @@ directly — the Planner validates every action (future milestone).
 
 ```
 atlas-os/
-├── docs/                      # Architecture, security, contracts, roadmap
+├── docs/                      # Architecture, security, contracts, eventbus, roadmap
+├── libs/
+│   └── atlas-sdk/             # Client library (registration + bus clients)
 ├── services/
 │   ├── core/                  # Atlas Core (FastAPI)
+│   ├── eventbus/              # Atlas Event Bus
 │   └── examples/echo/         # Minimal service demonstrating the contract
 ├── docker-compose.yml
 └── .env.example

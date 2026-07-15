@@ -2,7 +2,9 @@ name: atlas-os
 
 services:
   atlas-core:
-    build: ./services/core
+    build:
+      context: .
+      dockerfile: services/core/Dockerfile
     container_name: atlas-core
     environment:
       ATLAS_BOOTSTRAP_TOKEN: ${ATLAS_BOOTSTRAP_TOKEN:?Set ATLAS_BOOTSTRAP_TOKEN in .env}
@@ -15,8 +17,30 @@ services:
     networks: [atlas]
     restart: unless-stopped
 
+  atlas-eventbus:
+    build:
+      context: .
+      dockerfile: services/eventbus/Dockerfile
+    container_name: atlas-eventbus
+    environment:
+      ATLAS_BOOTSTRAP_TOKEN: ${ATLAS_BOOTSTRAP_TOKEN:?Set ATLAS_BOOTSTRAP_TOKEN in .env}
+      ATLAS_EVENTBUS_CORE_URL: http://atlas-core:8000
+      ATLAS_EVENTBUS_SELF_URL: http://atlas-eventbus:8200
+      ATLAS_EVENTBUS_DATABASE_PATH: /app/data/atlas-eventbus.db
+    ports:
+      - "8200:8200"
+    volumes:
+      - atlas-eventbus-data:/app/data
+    networks: [atlas]
+    depends_on:
+      atlas-core:
+        condition: service_healthy
+    restart: unless-stopped
+
   atlas-echo:
-    build: ./services/examples/echo
+    build:
+      context: .
+      dockerfile: services/examples/echo/Dockerfile
     container_name: atlas-echo
     environment:
       ATLAS_CORE_URL: http://atlas-core:8000
@@ -37,3 +61,4 @@ networks:
 
 volumes:
   atlas-core-data:
+  atlas-eventbus-data:

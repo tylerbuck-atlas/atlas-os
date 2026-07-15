@@ -8,15 +8,16 @@ WORKDIR /app
 COPY libs/atlas-sdk ./libs/atlas-sdk
 RUN pip install --no-cache-dir ./libs/atlas-sdk
 
-COPY services/examples/echo/pyproject.toml ./
-COPY services/examples/echo/atlas_echo ./atlas_echo
+COPY services/eventbus/pyproject.toml ./
+COPY services/eventbus/atlas_eventbus ./atlas_eventbus
 RUN pip install --no-cache-dir .
 
+RUN mkdir -p /app/data && chown -R atlas:atlas /app
 USER atlas
 
-EXPOSE 8100
+EXPOSE 8200
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-  CMD python -c "import httpx; httpx.get('http://localhost:8100/healthz').raise_for_status()"
+  CMD python -c "import httpx; httpx.get('http://localhost:8200/healthz').raise_for_status()"
 
-CMD ["python", "-m", "atlas_echo.main"]
+CMD ["python", "-m", "atlas_eventbus.main"]

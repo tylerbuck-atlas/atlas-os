@@ -14,12 +14,16 @@ the foundation is real.
 - Example service (`atlas.echo`) proving the service contract
 - Test suite
 
-## Milestone 2 — Atlas Event Bus
+## Milestone 2 — Atlas Event Bus ✅
 
 - Standalone Event Bus service (`atlas.eventbus`)
 - Core publishes its existing registry/health events onto the bus
-- Event schema registry + versioning
-- At-least-once delivery, per-service subscriptions
+  (durable outbox + persisted cursor, discovered via Core's own registry)
+- Event schema registry + versioning, validated at publish time
+- At-least-once delivery, per-service subscriptions, wildcard topics,
+  long-polling pull, visibility-timeout redelivery
+- Token introspection API in Core (`/v1/auth/introspect`)
+- `atlas-sdk` shared library (registration client + bus client)
 
 ## Milestone 3 — Zero Trust hardening
 

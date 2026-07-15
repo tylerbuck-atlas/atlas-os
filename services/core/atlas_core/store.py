@@ -41,6 +41,11 @@ CREATE TABLE IF NOT EXISTS events (
     payload     TEXT NOT NULL                 -- JSON object
 );
 CREATE INDEX IF NOT EXISTS idx_events_topic ON events (topic);
+
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
@@ -185,6 +190,37 @@ class RegistryStore:
         await self.db.execute(
             "INSERT INTO events (topic, occurred_at, payload) VALUES (?, ?, ?)",
             (event.topic, event.occurred_at.isoformat(), json.dumps(event.payload)),
+        )
+        await self.db.commit()
+
+    async def list_events_after(self, after_id: int, *, limit: int = 100) -> list[Event]:
+        """Events with id > after_id, oldest first (outbox publishing order)."""
+        async with self.db.execute(
+            "SELECT * FROM events WHERE id > ? ORDER BY id ASC LIMIT ?", (after_id, limit)
+        ) as cur:
+            rows = await cur.fetchall()
+        return [
+            Event(
+                id=row["id"],
+                topic=row["topic"],
+                occurred_at=datetime.fromisoformat(row["occurred_at"]),
+                payload=json.loads(row["payload"]),
+            )
+            for row in rows
+        ]
+
+    # -- meta ---------------------------------------------------------------
+
+    async def get_meta(self, key: str) -> str | None:
+        async with self.db.execute("SELECT value FROM meta WHERE key = ?", (key,)) as cur:
+            row = await cur.fetchone()
+        return row["value"] if row else None
+
+    async def set_meta(self, key: str, value: str) -> None:
+        await self.db.execute(
+            "INSERT INTO meta (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
         )
         await self.db.commit()
 

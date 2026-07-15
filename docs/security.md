@@ -42,6 +42,16 @@ model it evolves into.
   available to any authenticated service.
 - Deregistration immediately revokes the token.
 
+### Token introspection (Milestone 2)
+
+Services that need to verify *other* services' tokens (today: the Event
+Bus) call `POST /v1/auth/introspect` on Core. The call itself must be
+authenticated; the response maps a token to `{name, instance_id,
+version}` or `active: false`. Verified identities may be cached briefly.
+This keeps Core the single authority on identity — no service ever
+holds another's secrets — and is retired along with bearer tokens when
+mTLS lands (Milestone 3).
+
 ### Transport
 
 Milestone 1 assumes services share a private container network (the

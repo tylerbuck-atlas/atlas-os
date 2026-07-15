@@ -3,16 +3,13 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "atlas-echo"
+name = "atlas-sdk"
 version = "0.2.0"
-description = "atlas.echo — reference implementation of the Atlas service contract"
+description = "Atlas OS SDK — service registration, discovery, and Event Bus client"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.110",
-    "uvicorn[standard]>=0.29",
     "httpx>=0.27",
-    "atlas-sdk",
 ]
 
 [tool.setuptools.packages.find]
-include = ["atlas_echo*"]
+include = ["atlas_sdk*"]

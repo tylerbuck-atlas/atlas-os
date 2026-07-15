@@ -36,6 +36,10 @@ class CoreConfig(BaseSettings):
     probe_interval_seconds: int = Field(default=15, ge=1)
     probe_timeout_seconds: float = Field(default=5.0, gt=0)
 
+    # Event publishing (outbox → Event Bus)
+    publish_interval_seconds: float = Field(default=1.0, gt=0)
+    publish_batch_size: int = Field(default=100, ge=1)
+
     # Storage
     database_path: str = "data/atlas-core.db"
 
