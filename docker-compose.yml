@@ -97,6 +97,50 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  atlas-planner:
+    build:
+      context: .
+      dockerfile: services/planner/Dockerfile
+    container_name: atlas-planner
+    environment:
+      ATLAS_BOOTSTRAP_TOKEN: ${ATLAS_BOOTSTRAP_TOKEN:?Set ATLAS_BOOTSTRAP_TOKEN in .env}
+      ATLAS_SECURITY_MODE: ${ATLAS_SECURITY_MODE:-mtls}
+      ATLAS_PLANNER_CORE_URL: https://atlas-core:8000
+      ATLAS_PLANNER_SELF_URL: https://atlas-planner:8500
+      ATLAS_PLANNER_DATABASE_PATH: /app/data/atlas-planner.db
+      ATLAS_PLANNER_TLS_DIR: /app/data/tls
+    ports:
+      - "8500:8500"
+    volumes:
+      - atlas-planner-data:/app/data
+    networks: [atlas, atlas-edge]
+    depends_on:
+      atlas-core:
+        condition: service_healthy
+    restart: unless-stopped
+
+  atlas-sentinel:
+    build:
+      context: .
+      dockerfile: services/sentinel/Dockerfile
+    container_name: atlas-sentinel
+    environment:
+      ATLAS_BOOTSTRAP_TOKEN: ${ATLAS_BOOTSTRAP_TOKEN:?Set ATLAS_BOOTSTRAP_TOKEN in .env}
+      ATLAS_SECURITY_MODE: ${ATLAS_SECURITY_MODE:-mtls}
+      ATLAS_SENTINEL_CORE_URL: https://atlas-core:8000
+      ATLAS_SENTINEL_SELF_URL: https://atlas-sentinel:8600
+      ATLAS_SENTINEL_DATABASE_PATH: /app/data/atlas-sentinel.db
+      ATLAS_SENTINEL_TLS_DIR: /app/data/tls
+    ports:
+      - "8600:8600"
+    volumes:
+      - atlas-sentinel-data:/app/data
+    networks: [atlas, atlas-edge]
+    depends_on:
+      atlas-core:
+        condition: service_healthy
+    restart: unless-stopped
+
   atlas-echo:
     build:
       context: .
@@ -132,3 +176,5 @@ volumes:
   atlas-eventbus-data:
   atlas-memory-data:
   atlas-assets-data:
+  atlas-planner-data:
+  atlas-sentinel-data:

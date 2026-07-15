@@ -18,7 +18,7 @@ among many, and never the source of truth.
 
 ## Status
 
-**Milestone 4 — Memory & Assets.** Implemented so far:
+**Milestone 5 — Planner & Sentinel.** Implemented so far:
 
 - **Atlas Core** — service discovery, registration, health monitoring,
   configuration, token authentication + introspection, plugin loading,
@@ -38,6 +38,10 @@ among many, and never the source of truth.
   registry events materialize into queryable system state.
 - **Atlas Asset Manager** — the home's manuals, documents, and photos as
   content-addressed, integrity-verified truth sources.
+- **Atlas Planner** — the only path from intent to action: default-deny
+  policy engine, operator approvals, auditable step-by-step execution.
+- **Atlas Sentinel** — watches the event stream; service-down, flapping,
+  and policy-probing alerts.
 
 Nothing more is implemented yet — deliberately. See [docs/roadmap.md](docs/roadmap.md).
 
@@ -50,13 +54,13 @@ between services.
 | Service              | Responsibility                                    | Status      |
 |----------------------|---------------------------------------------------|-------------|
 | **Atlas Core**       | Discovery, registration, health, config, auth     | ✅ Milestone 1 |
-| Atlas Planner        | Validates and plans every action                  | planned     |
+| **Atlas Planner**    | Validates and plans every action                  | ✅ Milestone 5 |
 | **Atlas Memory**     | Durable, queryable state                          | ✅ Milestone 4 |
 | **Atlas Event Bus**  | Inter-service messaging                           | ✅ Milestone 2 |
 | Atlas Skill Manager  | Capability packages                               | planned     |
 | Atlas Device Manager | Physical/virtual device abstraction               | planned     |
 | **Atlas Asset Manager** | Files, manuals, documents                      | ✅ Milestone 4 |
-| Atlas Sentinel       | Security monitoring and enforcement               | planned     |
+| **Atlas Sentinel**   | Security monitoring and enforcement               | ✅ Milestone 5 |
 
 Full details in [docs/architecture.md](docs/architecture.md).
 
@@ -126,7 +130,8 @@ enrolls with a CSR at registration and receives a 24-hour certificate
 carrying its identity. All traffic is mutual TLS; callers are identified
 by their verified peer certificates; plugins must be CA-signed. Details
 in [docs/security.md](docs/security.md). LLM outputs are **never**
-executed directly — the Planner validates every action (future milestone).
+executed directly — the Planner validates every action, default-deny
+([docs/planner-sentinel.md](docs/planner-sentinel.md)).
 
 ## Repository layout
 
@@ -140,6 +145,8 @@ atlas-os/
 │   ├── eventbus/              # Atlas Event Bus
 │   ├── memory/                # Atlas Memory (facts, classes, history)
 │   ├── assets/                # Atlas Asset Manager (files as truth sources)
+│   ├── planner/               # Atlas Planner (policy, plans, execution)
+│   ├── sentinel/              # Atlas Sentinel (anomaly monitoring)
 │   └── examples/echo/         # Minimal service demonstrating the contract
 ├── docker-compose.yml
 └── .env.example

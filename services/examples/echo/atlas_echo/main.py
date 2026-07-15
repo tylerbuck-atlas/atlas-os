@@ -89,12 +89,24 @@ def create_app(atlas: AtlasService | None = None) -> FastAPI:
         """The capability this service publishes: echo.reply."""
         return {"reply": payload.message, "service": SERVICE_NAME}
 
+    @app.post("/v1/invoke/echo.reply")
+    async def invoke_echo(payload: EchoRequest) -> dict:
+        """Uniform capability invocation endpoint (docs/service-contract.md §5a):
+        this is how the Planner executes plan steps against this service."""
+        return {"reply": payload.message, "service": SERVICE_NAME}
+
     return app
 
 
 def run() -> None:
     import uvicorn
 
+    logging.basicConfig(
+        level="INFO",
+        format="%(asctime)s %(levelname)-8s %(name)s | %(message)s",
+        stream=sys.stdout,
+        force=True,
+    )
     atlas = build_atlas_service()
     app = create_app(atlas)
 

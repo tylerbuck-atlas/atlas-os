@@ -47,11 +47,15 @@ the foundation is real.
   model is live in both schemas
 - SDK grows shared service auth + the durable BusOutbox
 
-## Milestone 5 — Atlas Planner + Sentinel
+## Milestone 5 — Atlas Planner + Sentinel ✅
 
-- Goal → validated plan → auditable execution pipeline
-- Policy engine: what may act on what, when
-- Sentinel anomaly monitoring
+- `atlas.planner`: goal → policy validation → (approval) → auditable
+  step-by-step execution against the uniform capability-invocation
+  contract; **default deny**; operator-only policies and approvals;
+  immutable plan/step audit trail; full lifecycle on the bus
+- `atlas.sentinel`: consumes registry.*/planner.* events; service-down,
+  flapping, policy-rejection and probing rules with alert dedup; alert
+  store + ack API; sentinel.alert.raised events
 
 ## Milestone 6 — Device & Skill Managers
 

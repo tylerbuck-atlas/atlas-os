@@ -81,6 +81,25 @@ GET {CORE_URL}/v1/registry/services?capability=echo.reply
 Authorization: Bearer {service_token}
 ```
 
+## 5a. Invocable capabilities (Milestone 5)
+
+A capability that can be *acted on* (not just discovered) must be
+invocable at the uniform endpoint:
+
+```
+POST {address}/v1/invoke/{capability}
+Content-Type: application/json
+
+{ ...capability-specific parameters... }
+```
+
+Return `2xx` + a JSON object on success; any other status is a failed
+step. **This endpoint is how the Atlas Planner executes plan steps** —
+services should treat calls to it as actions with consequences and may
+verify that the caller is `atlas.planner` for capabilities with side
+effects. Read-only capabilities (discovery, queries) need not implement
+invocation.
+
 ## 6. Shutdown
 
 On clean shutdown:
