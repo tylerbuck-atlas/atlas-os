@@ -29,6 +29,7 @@ def config() -> CoreConfig:
         probe_interval_seconds=1,
         probe_timeout_seconds=0.5,
         log_level="WARNING",
+        security_mode="token",
     )
 
 

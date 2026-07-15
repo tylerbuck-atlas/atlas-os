@@ -34,14 +34,21 @@ log = logging.getLogger("atlas.core.health")
 class HealthMonitor:
     """Background watchdog + prober over the service registry."""
 
-    def __init__(self, registry: ServiceRegistry, config: CoreConfig) -> None:
+    def __init__(
+        self,
+        registry: ServiceRegistry,
+        config: CoreConfig,
+        *,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
         self._registry = registry
         self._config = config
         self._tasks: list[asyncio.Task] = []
-        self._client: httpx.AsyncClient | None = None
+        self._client: httpx.AsyncClient | None = client
 
     async def start(self) -> None:
-        self._client = httpx.AsyncClient(timeout=self._config.probe_timeout_seconds)
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=self._config.probe_timeout_seconds)
         self._tasks = [
             asyncio.create_task(self._watchdog_loop(), name="atlas-health-watchdog"),
             asyncio.create_task(self._probe_loop(), name="atlas-health-prober"),

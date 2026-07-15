@@ -44,6 +44,9 @@ class ServiceRegistration(BaseModel):
     health_url: str = Field(max_length=512, examples=["http://atlas-echo:8100/healthz"])
     capabilities: list[str] = Field(default_factory=list, max_length=128)
     metadata: dict[str, str] = Field(default_factory=dict)
+    #: PEM CSR. Required in mtls mode; the response carries the issued
+    #: certificate. Ignored in token mode.
+    csr: str | None = Field(default=None, max_length=16384)
 
     @field_validator("name")
     @classmethod
@@ -95,11 +98,17 @@ class ServiceRecord(BaseModel):
 
 
 class RegistrationResponse(BaseModel):
-    """Returned exactly once, at registration. The token is never shown again."""
+    """Returned exactly once, at registration.
+
+    token mode: `service_token` is set (never shown again).
+    mtls mode: `certificate` + `ca_certificate` are set; tokens retired.
+    """
 
     service: ServiceRecord
-    service_token: str
     heartbeat_interval_seconds: int
+    service_token: str | None = None
+    certificate: str | None = None
+    ca_certificate: str | None = None
 
 
 class Event(BaseModel):

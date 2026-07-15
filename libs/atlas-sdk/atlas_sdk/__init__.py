@@ -11,7 +11,22 @@ to each other — all communication still flows through Core and the Bus.
 """
 
 from .client import AtlasService, EventBusClient, discover_service
+from .tls import (
+    MTLSProtocol,
+    TLSRuntime,
+    create_csr_pem,
+    generate_private_key_pem,
+    identity_uri,
+    parse_identity_uri,
+    peer_cert_der_for_scope,
+    peer_identity_from_der,
+)
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
-__all__ = ["AtlasService", "EventBusClient", "discover_service", "__version__"]
+__all__ = [
+    "AtlasService", "EventBusClient", "discover_service",
+    "MTLSProtocol", "TLSRuntime", "create_csr_pem", "generate_private_key_pem",
+    "identity_uri", "parse_identity_uri", "peer_cert_der_for_scope",
+    "peer_identity_from_der", "__version__",
+]

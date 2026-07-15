@@ -13,7 +13,7 @@ among many, and never the source of truth.
 
 ## Status
 
-**Milestone 2 — Atlas Event Bus.** Implemented so far:
+**Milestone 3 — Zero Trust.** Implemented so far:
 
 - **Atlas Core** — service discovery, registration, health monitoring,
   configuration, token authentication + introspection, plugin loading,
@@ -23,8 +23,12 @@ among many, and never the source of truth.
   subscriptions, wildcard topics, long-polling pull/ack, a versioned
   schema registry, and Core's registry/health events flowing through it
   via a durable outbox.
-- **atlas-sdk** — the client library services use to register,
-  heartbeat, and consume the bus.
+- **atlas-sdk** — the client library services use to enroll,
+  heartbeat, rotate certificates, and consume the bus.
+- **Zero Trust (mtls mode, default)** — Atlas CA in Core, short-lived
+  service certificates issued at registration, mutual TLS on every
+  connection, identity from peer certificates, signed plugins. Bearer
+  tokens are retired.
 
 Nothing more is implemented yet — deliberately. See [docs/roadmap.md](docs/roadmap.md).
 
@@ -103,11 +107,12 @@ Every Atlas service, forever:
 
 ## Security
 
-Zero Trust. Every API call is authenticated; there are no anonymous
-services. Milestone 1 uses bootstrap-token authentication with per-service
-issued tokens; the certificate/mTLS design it evolves into is specified in
-[docs/security.md](docs/security.md). LLM outputs are **never** executed
-directly — the Planner validates every action (future milestone).
+Zero Trust, implemented. Atlas Core operates a private CA; every service
+enrolls with a CSR at registration and receives a 24-hour certificate
+carrying its identity. All traffic is mutual TLS; callers are identified
+by their verified peer certificates; plugins must be CA-signed. Details
+in [docs/security.md](docs/security.md). LLM outputs are **never**
+executed directly — the Planner validates every action (future milestone).
 
 ## Repository layout
 

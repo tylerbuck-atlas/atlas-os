@@ -8,7 +8,10 @@ services:
     container_name: atlas-core
     environment:
       ATLAS_BOOTSTRAP_TOKEN: ${ATLAS_BOOTSTRAP_TOKEN:?Set ATLAS_BOOTSTRAP_TOKEN in .env}
+      ATLAS_SECURITY_MODE: ${ATLAS_SECURITY_MODE:-mtls}
       ATLAS_DATABASE_PATH: /app/data/atlas-core.db
+      ATLAS_CA_DIR: /app/data/ca
+      ATLAS_CORE_HOSTNAMES: atlas-core,localhost
       ATLAS_LOG_LEVEL: ${ATLAS_LOG_LEVEL:-INFO}
     ports:
       - "8000:8000"
@@ -24,9 +27,11 @@ services:
     container_name: atlas-eventbus
     environment:
       ATLAS_BOOTSTRAP_TOKEN: ${ATLAS_BOOTSTRAP_TOKEN:?Set ATLAS_BOOTSTRAP_TOKEN in .env}
-      ATLAS_EVENTBUS_CORE_URL: http://atlas-core:8000
-      ATLAS_EVENTBUS_SELF_URL: http://atlas-eventbus:8200
+      ATLAS_SECURITY_MODE: ${ATLAS_SECURITY_MODE:-mtls}
+      ATLAS_EVENTBUS_CORE_URL: https://atlas-core:8000
+      ATLAS_EVENTBUS_SELF_URL: https://atlas-eventbus:8200
       ATLAS_EVENTBUS_DATABASE_PATH: /app/data/atlas-eventbus.db
+      ATLAS_EVENTBUS_TLS_DIR: /app/data/tls
     ports:
       - "8200:8200"
     volumes:
@@ -43,9 +48,11 @@ services:
       dockerfile: services/examples/echo/Dockerfile
     container_name: atlas-echo
     environment:
-      ATLAS_CORE_URL: http://atlas-core:8000
+      ATLAS_CORE_URL: https://atlas-core:8000
       ATLAS_BOOTSTRAP_TOKEN: ${ATLAS_BOOTSTRAP_TOKEN:?Set ATLAS_BOOTSTRAP_TOKEN in .env}
-      ATLAS_ECHO_URL: http://atlas-echo:8100
+      ATLAS_SECURITY_MODE: ${ATLAS_SECURITY_MODE:-mtls}
+      ATLAS_ECHO_URL: https://atlas-echo:8100
+      ATLAS_ECHO_TLS_DIR: /tmp/atlas-tls
     ports:
       - "8100:8100"
     networks: [atlas]

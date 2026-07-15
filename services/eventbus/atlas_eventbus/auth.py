@@ -98,7 +98,25 @@ async def require_identity(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
 ) -> Identity:
-    """FastAPI dependency: resolve and require an authenticated identity."""
+    """FastAPI dependency: resolve and require an authenticated identity.
+
+    mtls mode: identity is the verified peer certificate's SAN URI —
+    verification against the Atlas CA happened at the TLS handshake.
+    token mode: introspect the bearer token against Core.
+    """
+    if request.app.state.config.security_mode == "mtls":
+        from atlas_sdk.tls import peer_cert_der_for_scope, peer_identity_from_der
+
+        der = peer_cert_der_for_scope(request.scope)
+        parsed = peer_identity_from_der(der) if der else None
+        if parsed is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="client certificate required",
+            )
+        name, instance_id = parsed
+        return Identity(name, instance_id, "cert")
+
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

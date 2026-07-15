@@ -46,8 +46,7 @@ class EventPublisher:
         self._store = store
         self._registry = registry
         self._config = config
-        self._client = client  # injectable for tests
-        self._owns_client = client is None
+        self._client = client  # injectable (tests, mTLS contexts)
         self._task: asyncio.Task | None = None
 
     async def start(self) -> None:
@@ -68,8 +67,9 @@ class EventPublisher:
             except asyncio.CancelledError:
                 pass
             self._task = None
-        if self._client is not None and self._owns_client:
+        if self._client is not None:
             await self._client.aclose()
+            self._client = None
 
     async def publish_once(self) -> int:
         """One publishing pass. Returns how many events were forwarded.

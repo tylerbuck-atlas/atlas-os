@@ -30,9 +30,18 @@ class CoreConfig(BaseSettings):
     # Network
     core_host: str = "0.0.0.0"
     core_port: int = Field(default=8000, ge=1, le=65535)
+    #: Hostnames Core is reachable at — the DNS SANs of its certificate.
+    core_hostnames: str = "atlas-core,localhost"
 
     # Security
     bootstrap_token: str = ""
+    #: "mtls" (default): certificate identity everywhere, tokens retired.
+    #: "token": Milestone-2 bearer-token behavior (development only).
+    security_mode: str = "mtls"
+    ca_dir: str = "data/ca"
+    cert_ttl_hours: int = Field(default=24, ge=1)
+    #: Require CA-signed plugin manifests. Defaults to on in mtls mode.
+    require_signed_plugins: bool | None = None
 
     # Health monitoring
     heartbeat_interval_seconds: int = Field(default=10, ge=1)
@@ -64,6 +73,19 @@ class CoreConfig(BaseSettings):
                 "Set a real secret."
             )
         return v
+
+    @field_validator("security_mode")
+    @classmethod
+    def _validate_security_mode(cls, v: str) -> str:
+        lower = v.lower()
+        if lower not in ("mtls", "token"):
+            raise ValueError("ATLAS_SECURITY_MODE must be 'mtls' or 'token'")
+        return lower
+
+    def signed_plugins_required(self) -> bool:
+        if self.require_signed_plugins is not None:
+            return self.require_signed_plugins
+        return self.security_mode == "mtls"
 
     @field_validator("log_level")
     @classmethod

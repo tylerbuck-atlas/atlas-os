@@ -4,8 +4,8 @@ The client library Atlas services use to satisfy the
 [service contract](../../docs/service-contract.md) and talk to the
 [Event Bus](../../docs/eventbus.md).
 
-- `AtlasService` — register with Core, heartbeat, re-register on token
-  invalidation, deregister on shutdown.
+- `AtlasService` — enroll with Core (CSR → certificate in mtls mode),
+  heartbeat, rotate certificates automatically, deregister on shutdown.
 - `EventBusClient` — publish events; create subscriptions; pull and ack
   deliveries.
 - `discover_service` — find services by name or capability via Core.

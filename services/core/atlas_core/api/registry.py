@@ -27,18 +27,49 @@ def _registry(request: Request) -> ServiceRegistry:
 @router.post(
     "/services",
     response_model=RegistrationResponse,
+    response_model_exclude_none=True,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_bootstrap)],
-    summary="Register a service instance",
+    summary="Register a service instance (mtls mode: submit a CSR, receive a certificate)",
 )
 async def register_service(
     registration: ServiceRegistration, request: Request
 ) -> RegistrationResponse:
+    config = request.app.state.config
+
+    if config.security_mode == "mtls":
+        if not registration.csr:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="mtls mode: registration requires a 'csr' (PEM)",
+            )
+        record, _token = await _registry(request).register(registration)
+        from ..ca import hostnames_from_urls
+
+        try:
+            certificate = request.app.state.ca.issue_from_csr(
+                registration.csr.encode(),
+                service_name=record.name,
+                instance_id=record.instance_id,
+                dns_names=hostnames_from_urls(record.address, record.health_url),
+                ttl_hours=config.cert_ttl_hours,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            )
+        return RegistrationResponse(
+            service=record,
+            heartbeat_interval_seconds=config.heartbeat_interval_seconds,
+            certificate=certificate.decode(),
+            ca_certificate=request.app.state.ca.cert_pem.decode(),
+        )
+
     record, token = await _registry(request).register(registration)
     return RegistrationResponse(
         service=record,
         service_token=token,
-        heartbeat_interval_seconds=request.app.state.config.heartbeat_interval_seconds,
+        heartbeat_interval_seconds=config.heartbeat_interval_seconds,
     )
 
 

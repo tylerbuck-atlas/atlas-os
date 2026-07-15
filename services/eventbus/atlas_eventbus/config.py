@@ -36,6 +36,22 @@ class BusConfig(BaseSettings):
     max_wait_seconds: int = Field(default=30, ge=0)
 
     # Auth
+    #: "mtls" (default): identity from verified peer certificates.
+    #: "token": Milestone-2 introspection against Core (development).
+    security_mode: str = Field(
+        default="mtls",
+        validation_alias=AliasChoices(
+            "ATLAS_EVENTBUS_SECURITY_MODE", "ATLAS_SECURITY_MODE", "security_mode"
+        ),
+    )
+    tls_dir: str = "data/tls"
+    #: Optional pre-provisioned CA certificate path (hardened bootstrap).
+    ca_cert_file: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "ATLAS_EVENTBUS_CA_CERT", "ATLAS_CA_CERT", "ca_cert_file"
+        ),
+    )
     introspect_cache_ttl_seconds: float = Field(default=30.0, ge=0)
 
     # Storage
@@ -53,6 +69,14 @@ class BusConfig(BaseSettings):
                 "register with Atlas Core. The bus does not boot anonymously."
             )
         return v
+
+    @field_validator("security_mode")
+    @classmethod
+    def _validate_security_mode(cls, v: str) -> str:
+        lower = v.lower()
+        if lower not in ("mtls", "token"):
+            raise ValueError("security mode must be 'mtls' or 'token'")
+        return lower
 
     @field_validator("log_level")
     @classmethod

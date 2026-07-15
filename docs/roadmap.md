@@ -25,12 +25,16 @@ the foundation is real.
 - Token introspection API in Core (`/v1/auth/introspect`)
 - `atlas-sdk` shared library (registration client + bus client)
 
-## Milestone 3 — Zero Trust hardening
+## Milestone 3 — Zero Trust hardening ✅
 
-- Atlas CA, CSR enrollment, short-lived service certificates
-- mTLS for all service↔service and service↔Core traffic
-- Token auth retired
-- Signed plugin verification
+- Atlas CA in Core: root at first boot, CSR enrollment at registration,
+  24-hour service certificates carrying `atlas://service/{name}/{instance}`
+- mTLS for all service↔service and service↔Core traffic; identity from
+  verified peer certificates; auto re-enrollment at 2/3 cert lifetime
+  with hot TLS reload; revocation via registry state
+- Token auth retired (bootstrap token = enrollment only; `token` mode
+  kept for development)
+- Signed plugin verification (CA-signed dist RECORDs) + operator certs
 
 ## Milestone 4 — Atlas Memory + Asset Manager
 

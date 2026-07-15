@@ -4,40 +4,43 @@
 
 """Atlas SDK clients.
 
-- :class:`AtlasService` — registration, heartbeats, re-registration, and
-  clean deregistration against Atlas Core.
-- :class:`EventBusClient` — publish, subscribe, pull, and ack against the
-  Atlas Event Bus.
+- :class:`AtlasService` — enrollment (mtls) / registration (token),
+  heartbeats, certificate rotation, clean deregistration.
+- :class:`EventBusClient` — publish, subscribe, pull, ack.
 - :func:`discover_service` — find services through Core's registry.
+
+Security modes follow docs/security.md:
+
+**mtls** — at startup the service generates a key, submits a CSR with the
+bootstrap token, and receives a short-lived certificate binding
+``atlas://service/{name}/{instance_id}``. All subsequent calls are mutual
+TLS; no bearer tokens exist. The SDK re-enrolls automatically at 2/3 of
+certificate lifetime (rotation = re-registration; Core supersedes the old
+instance and its certificate is refused from that moment).
+
+**token** — Milestone-2 bearer-token behavior for development.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import ssl
 
 import httpx
+
+from .tls import (
+    TLSRuntime,
+    cert_seconds_remaining,
+    create_csr_pem,
+    generate_private_key_pem,
+)
 
 log = logging.getLogger("atlas.sdk")
 
 
 class AtlasService:
-    """Keeps one service instance registered and heartbeating with Core.
-
-    Usage::
-
-        atlas = AtlasService(
-            name="atlas.echo", version="0.2.0",
-            address="http://atlas-echo:8100",
-            health_url="http://atlas-echo:8100/healthz",
-            capabilities=["echo.reply"],
-            core_url="http://atlas-core:8000",
-            bootstrap_token=...,
-        )
-        await atlas.start()   # registers (retrying) + starts heartbeats
-        ...
-        await atlas.stop()    # deregisters cleanly
-    """
+    """Keeps one service instance enrolled, heartbeating, and rotated."""
 
     def __init__(
         self,
@@ -50,6 +53,9 @@ class AtlasService:
         core_url: str,
         bootstrap_token: str,
         metadata: dict[str, str] | None = None,
+        security_mode: str = "token",
+        tls_dir: str | None = None,
+        ca_cert_file: str | None = None,
         timeout: float = 5.0,
     ) -> None:
         self.name = name
@@ -59,58 +65,180 @@ class AtlasService:
         self.capabilities = capabilities
         self.metadata = metadata or {}
         self.core_url = core_url.rstrip("/")
+        self.security_mode = security_mode
         self._bootstrap_token = bootstrap_token
+        self._timeout = timeout
+
         self.instance_id: str | None = None
         self.service_token: str | None = None
         self._interval: int = 10
-        self._task: asyncio.Task | None = None
-        self._client = httpx.AsyncClient(timeout=timeout)
 
-    # -- lifecycle ---------------------------------------------------------
+        # mtls state
+        self.tls: TLSRuntime | None = (
+            TLSRuntime.prepare(tls_dir) if security_mode == "mtls" and tls_dir else None
+        )
+        self._ca_cert_file = ca_cert_file
+        self._key_pem: bytes | None = None
+        self._cert_pem: bytes | None = None
+        #: Optional hook: called after each enrollment so the server can
+        #: reload its TLS context with the fresh certificate.
+        self.on_credentials_rotated = None
+
+        self._tasks: list[asyncio.Task] = []
+        self._client: httpx.AsyncClient | None = None
+
+    # -- public lifecycle ---------------------------------------------------
+
+    async def enroll(self) -> None:
+        """Register with Core (retrying until it is up).
+
+        mtls: generates a key + CSR, receives and installs the
+        certificate. Must complete before the service starts serving TLS.
+        """
+        delay = 1.0
+        while True:
+            try:
+                await self._register_once()
+                return
+            except (httpx.HTTPError, KeyError, ssl.SSLError) as exc:
+                log.info("Core not ready (%s); retrying in %.0fs", exc, delay)
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 15.0)
+
+    def start_background(self) -> None:
+        """Start heartbeats (+ certificate rotation in mtls mode)."""
+        self._tasks = [
+            asyncio.create_task(self._heartbeat_loop(), name=f"{self.name}-heartbeat")
+        ]
+        if self.security_mode == "mtls":
+            self._tasks.append(
+                asyncio.create_task(self._rotation_loop(), name=f"{self.name}-cert-rotation")
+            )
 
     async def start(self) -> None:
-        await self._register_with_retry()
-        self._task = asyncio.create_task(
-            self._heartbeat_loop(), name=f"{self.name}-heartbeat"
-        )
+        """Convenience for token mode: enroll + background loops."""
+        await self.enroll()
+        self.start_background()
 
     async def stop(self) -> None:
-        if self._task:
-            self._task.cancel()
+        for task in self._tasks:
+            task.cancel()
+        for task in self._tasks:
             try:
-                await self._task
+                await task
             except asyncio.CancelledError:
                 pass
-            self._task = None
-        if self.instance_id and self.service_token:
+        self._tasks = []
+        if self.instance_id:
             try:
-                await self._client.delete(
+                await self._http().delete(
                     f"{self.core_url}/v1/registry/services/{self.instance_id}",
-                    headers=self._auth(self.service_token),
+                    headers=self._auth_headers(),
                 )
                 log.info("%s deregistered from Atlas Core", self.name)
-            except httpx.HTTPError:
+            except (httpx.HTTPError, ssl.SSLError):
                 log.warning("%s could not deregister cleanly", self.name)
-        await self._client.aclose()
+        if self._client:
+            await self._client.aclose()
+            self._client = None
+
+    def client_ssl_context(self) -> ssl.SSLContext | None:
+        """Outbound mTLS context (trust CA, present our cert), or None."""
+        if self.security_mode != "mtls" or self.tls is None:
+            return None
+        return self.tls.client_ssl_context()
 
     # -- internals -----------------------------------------------------------
 
-    @staticmethod
-    def _auth(token: str) -> dict[str, str]:
-        return {"Authorization": f"Bearer {token}"}
+    def _auth_headers(self) -> dict[str, str]:
+        if self.security_mode == "mtls":
+            return {}  # identity is the client certificate
+        return {"Authorization": f"Bearer {self.service_token or ''}"}
 
-    async def _register(self) -> None:
-        response = await self._client.post(
+    def _http(self) -> httpx.AsyncClient:
+        if self._client is None:
+            verify = self.client_ssl_context()
+            self._client = httpx.AsyncClient(
+                timeout=self._timeout, verify=verify if verify is not None else True
+            )
+        return self._client
+
+    async def _rebuild_http(self) -> None:
+        if self._client:
+            await self._client.aclose()
+        self._client = None
+
+    async def _ensure_ca_cert(self) -> bytes:
+        """Trust anchor for talking to Core.
+
+        Preferred: a CA cert distributed out-of-band (ca_cert_file).
+        Fallback: fetch from Core unauthenticated (trust-on-first-use on
+        the private network; see docs/security.md)."""
+        if self._ca_cert_file:
+            from pathlib import Path
+
+            return Path(self._ca_cert_file).read_bytes()
+        async with httpx.AsyncClient(timeout=self._timeout, verify=False) as bootstrap:
+            response = await bootstrap.get(f"{self.core_url}/v1/ca/certificate")
+            response.raise_for_status()
+            log.warning(
+                "CA certificate fetched via TOFU from %s — distribute "
+                "ATLAS_CA_CERT out-of-band to harden bootstrap", self.core_url,
+            )
+            return response.content
+
+    async def _register_once(self) -> None:
+        payload = {
+            "name": self.name,
+            "version": self.version,
+            "address": self.address,
+            "health_url": self.health_url,
+            "capabilities": self.capabilities,
+            "metadata": self.metadata,
+        }
+
+        if self.security_mode == "mtls":
+            assert self.tls is not None, "mtls mode requires tls_dir"
+            ca_pem = await self._ensure_ca_cert()
+            self.tls.ca_path.write_bytes(ca_pem)
+            if self._key_pem is None:
+                self._key_pem = generate_private_key_pem()
+            payload["csr"] = create_csr_pem(self._key_pem, self.name).decode()
+
+            verify_ctx = ssl.create_default_context(cadata=ca_pem.decode())
+            async with httpx.AsyncClient(timeout=self._timeout, verify=verify_ctx) as c:
+                response = await c.post(
+                    f"{self.core_url}/v1/registry/services",
+                    headers={"Authorization": f"Bearer {self._bootstrap_token}"},
+                    json=payload,
+                )
+            response.raise_for_status()
+            body = response.json()
+            self.instance_id = body["service"]["instance_id"]
+            self._interval = body["heartbeat_interval_seconds"]
+            self._cert_pem = body["certificate"].encode()
+            self.tls.write(
+                key_pem=self._key_pem,
+                cert_pem=self._cert_pem,
+                ca_pem=body["ca_certificate"].encode(),
+            )
+            await self._rebuild_http()
+            if self.on_credentials_rotated:
+                try:
+                    self.on_credentials_rotated()
+                except Exception:
+                    log.exception("credentials-rotated hook failed")
+            log.info(
+                "%s enrolled (instance %s, cert valid %.0fh, heartbeat %ss)",
+                self.name, self.instance_id,
+                cert_seconds_remaining(self._cert_pem) / 3600, self._interval,
+            )
+            return
+
+        response = await self._http().post(
             f"{self.core_url}/v1/registry/services",
-            headers=self._auth(self._bootstrap_token),
-            json={
-                "name": self.name,
-                "version": self.version,
-                "address": self.address,
-                "health_url": self.health_url,
-                "capabilities": self.capabilities,
-                "metadata": self.metadata,
-            },
+            headers={"Authorization": f"Bearer {self._bootstrap_token}"},
+            json=payload,
         )
         response.raise_for_status()
         body = response.json()
@@ -122,51 +250,57 @@ class AtlasService:
             self.name, self.instance_id, self._interval,
         )
 
-    async def _register_with_retry(self) -> None:
-        delay = 1.0
-        while True:
-            try:
-                await self._register()
-                return
-            except (httpx.HTTPError, KeyError) as exc:
-                log.info("Core not ready (%s); retrying in %.0fs", exc, delay)
-                await asyncio.sleep(delay)
-                delay = min(delay * 2, 15.0)
-
     async def _heartbeat_loop(self) -> None:
         while True:
             await asyncio.sleep(self._interval)
             try:
-                response = await self._client.post(
+                response = await self._http().post(
                     f"{self.core_url}/v1/registry/services/{self.instance_id}/heartbeat",
-                    headers=self._auth(self.service_token or ""),
+                    headers=self._auth_headers(),
                 )
-                if response.status_code in (401, 410):
-                    log.warning("%s token invalidated; re-registering", self.name)
-                    await self._register_with_retry()
-            except httpx.HTTPError as exc:
+                if response.status_code in (401, 403, 410):
+                    log.warning("%s credentials invalidated; re-enrolling", self.name)
+                    await self.enroll()
+            except (httpx.HTTPError, ssl.SSLError) as exc:
                 log.warning("%s heartbeat failed: %s", self.name, exc)
+
+    async def _rotation_loop(self) -> None:
+        """Re-enroll at 2/3 of certificate lifetime."""
+        while True:
+            if self._cert_pem is None:
+                await asyncio.sleep(5)
+                continue
+            remaining = cert_seconds_remaining(self._cert_pem)
+            await asyncio.sleep(max(remaining / 3, 10))
+            if self._cert_pem and cert_seconds_remaining(self._cert_pem) < remaining * 0.67:
+                log.info("%s rotating certificate", self.name)
+                await self.enroll()
 
 
 async def discover_service(
     *,
     core_url: str,
-    token: str,
+    token: str | None = None,
+    ssl_context: ssl.SSLContext | None = None,
     name: str | None = None,
     capability: str | None = None,
     timeout: float = 5.0,
 ) -> list[dict]:
-    """Query Core's registry. Returns service records (possibly empty)."""
+    """Query Core's registry. Authenticate with a token (token mode) or an
+    mTLS client context (mtls mode)."""
     params: dict[str, str] = {}
     if name:
         params["name"] = name
     if capability:
         params["capability"] = capability
-    async with httpx.AsyncClient(timeout=timeout) as client:
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    async with httpx.AsyncClient(
+        timeout=timeout, verify=ssl_context if ssl_context is not None else True
+    ) as client:
         response = await client.get(
             f"{core_url.rstrip('/')}/v1/registry/services",
             params=params,
-            headers={"Authorization": f"Bearer {token}"},
+            headers=headers,
         )
         response.raise_for_status()
         return response.json()
@@ -175,14 +309,25 @@ async def discover_service(
 class EventBusClient:
     """Client for the Atlas Event Bus.
 
-    Authenticate with the service token issued by Core at registration
-    (the Bus verifies it via Core's introspection API).
+    token mode: pass the Core-issued service token.
+    mtls mode: pass the service's client SSL context — identity travels
+    in the certificate, no token needed.
     """
 
-    def __init__(self, bus_url: str, token: str, *, timeout: float = 35.0) -> None:
+    def __init__(
+        self,
+        bus_url: str,
+        token: str | None = None,
+        *,
+        ssl_context: ssl.SSLContext | None = None,
+        timeout: float = 35.0,
+    ) -> None:
         self.bus_url = bus_url.rstrip("/")
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
         self._client = httpx.AsyncClient(
-            timeout=timeout, headers={"Authorization": f"Bearer {token}"}
+            timeout=timeout,
+            headers=headers,
+            verify=ssl_context if ssl_context is not None else True,
         )
 
     async def close(self) -> None:
@@ -191,7 +336,6 @@ class EventBusClient:
     async def publish(
         self, topic: str, payload: dict, *, occurred_at: str | None = None
     ) -> dict:
-        """Publish one event. Returns the stored envelope."""
         body: dict = {"topic": topic, "payload": payload}
         if occurred_at:
             body["occurred_at"] = occurred_at
@@ -200,10 +344,6 @@ class EventBusClient:
         return response.json()
 
     async def ensure_subscription(self, name: str, topics: list[str]) -> str:
-        """Create (or fetch, if it already exists) a named subscription.
-
-        Returns the subscription id. Idempotent per (service, name).
-        """
         response = await self._client.post(
             f"{self.bus_url}/v1/subscriptions",
             json={"name": name, "topics": topics},
@@ -214,7 +354,6 @@ class EventBusClient:
     async def pull(
         self, subscription_id: str, *, max_messages: int = 10, wait_seconds: int = 0
     ) -> list[dict]:
-        """Pull up to `max_messages` deliveries. Long-polls up to `wait_seconds`."""
         response = await self._client.post(
             f"{self.bus_url}/v1/subscriptions/{subscription_id}/pull",
             json={"max_messages": max_messages, "wait_seconds": wait_seconds},
@@ -223,7 +362,6 @@ class EventBusClient:
         return response.json()["messages"]
 
     async def ack(self, subscription_id: str, delivery_ids: list[int]) -> None:
-        """Acknowledge processed deliveries so they are not redelivered."""
         response = await self._client.post(
             f"{self.bus_url}/v1/subscriptions/{subscription_id}/ack",
             json={"delivery_ids": delivery_ids},

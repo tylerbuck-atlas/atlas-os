@@ -17,6 +17,6 @@ USER atlas
 EXPOSE 8100
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-  CMD python -c "import httpx; httpx.get('http://localhost:8100/healthz').raise_for_status()"
+  CMD python -c "import httpx; httpx.get('https://localhost:8100/healthz', verify=False).raise_for_status()"
 
 CMD ["python", "-m", "atlas_echo.main"]

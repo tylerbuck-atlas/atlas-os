@@ -34,6 +34,7 @@ pytest
 | PUT | `/v1/schemas/{topic}` | register a schema version |
 | GET | `/v1/schemas[/{topic}]` | inspect schemas |
 
-All endpoints except `/healthz` require a bearer token that Atlas Core
-recognizes (the caller's service token). Identity is resolved through
-Core's `/v1/auth/introspect`.
+All endpoints except `/healthz` require an authenticated identity. In
+mtls mode (default) that is the caller's verified peer certificate; in
+token (development) mode, a bearer token resolved through Core's
+`/v1/auth/introspect`.

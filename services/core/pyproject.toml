@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "atlas-core"
-version = "0.2.0"
+version = "0.3.0"
 description = "Atlas OS Core — service registry, discovery, health monitoring, and boot coordination"
 license = {text = "AGPL-3.0-only"}
 authors = [{name = "Tyler Buck", email = "tyler.buck123@gmail.com"}]
@@ -16,6 +16,8 @@ dependencies = [
     "pydantic-settings>=2.2",
     "httpx>=0.27",
     "aiosqlite>=0.20",
+    "cryptography>=42",
+    "atlas-sdk",
 ]
 
 [project.optional-dependencies]

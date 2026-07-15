@@ -50,6 +50,7 @@ def config() -> BusConfig:
         visibility_timeout_seconds=1,
         max_wait_seconds=5,
         log_level="WARNING",
+        security_mode="token",
     )
 
 
