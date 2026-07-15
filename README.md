@@ -18,7 +18,7 @@ among many, and never the source of truth.
 
 ## Status
 
-**Milestone 5 — Planner & Sentinel.** Implemented so far:
+**Milestone 6 — Devices & Skills.** Implemented so far:
 
 - **Atlas Core** — service discovery, registration, health monitoring,
   configuration, token authentication + introspection, plugin loading,
@@ -42,6 +42,10 @@ among many, and never the source of truth.
   policy engine, operator approvals, auditable step-by-step execution.
 - **Atlas Sentinel** — watches the event stream; service-down, flapping,
   and policy-probing alerts.
+- **Atlas Device Manager** — the home's devices behind one abstraction;
+  adapters own protocols; commands enter only through the Planner.
+- **Atlas Skill Manager** — signed, versioned capability packages,
+  artifact-verified against the Asset Manager.
 
 Nothing more is implemented yet — deliberately. See [docs/roadmap.md](docs/roadmap.md).
 
@@ -57,8 +61,8 @@ between services.
 | **Atlas Planner**    | Validates and plans every action                  | ✅ Milestone 5 |
 | **Atlas Memory**     | Durable, queryable state                          | ✅ Milestone 4 |
 | **Atlas Event Bus**  | Inter-service messaging                           | ✅ Milestone 2 |
-| Atlas Skill Manager  | Capability packages                               | planned     |
-| Atlas Device Manager | Physical/virtual device abstraction               | planned     |
+| **Atlas Skill Manager** | Capability packages                            | ✅ Milestone 6 |
+| **Atlas Device Manager** | Physical/virtual device abstraction           | ✅ Milestone 6 |
 | **Atlas Asset Manager** | Files, manuals, documents                      | ✅ Milestone 4 |
 | **Atlas Sentinel**   | Security monitoring and enforcement               | ✅ Milestone 5 |
 
@@ -147,7 +151,9 @@ atlas-os/
 │   ├── assets/                # Atlas Asset Manager (files as truth sources)
 │   ├── planner/               # Atlas Planner (policy, plans, execution)
 │   ├── sentinel/              # Atlas Sentinel (anomaly monitoring)
-│   └── examples/echo/         # Minimal service demonstrating the contract
+│   ├── devices/               # Atlas Device Manager (adapters own protocols)
+│   ├── skills/                # Atlas Skill Manager (signed packages)
+│   └── examples/              # echo (service contract), virtual-adapter (adapter contract)
 ├── docker-compose.yml
 └── .env.example
 ```

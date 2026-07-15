@@ -57,11 +57,19 @@ the foundation is real.
   flapping, policy-rejection and probing rules with alert dedup; alert
   store + ack API; sentinel.alert.raised events
 
-## Milestone 6 — Device & Skill Managers
+## Milestone 6 — Device & Skill Managers ✅
 
-- Device abstraction layer (integration adapters live here — this is
-  where MQTT/Zigbee/etc. finally appear, as adapters, not foundations)
-- Skill packaging, signing, discovery
+- `atlas.devices`: device abstraction with steward adapters (identity-
+  scoped sync), class-redacted events, state persisted into Memory as
+  class-aware facts; commands accepted ONLY from the Planner/operator
+  and routed to adapters via the uniform adapter contract
+- `atlas.adapter.virtual`: reference adapter (simulated light + sensor +
+  Class-3 presence) proving the chain with zero hardware
+- `atlas.skills`: signed skill manifests (Atlas CA), artifact
+  content-address cross-checked against Assets, immutable versions,
+  operator-gated enablement
+- LAN-adapter grant pattern documented in Compose (MQTT/Zigbee/Z-Wave
+  arrive as explicit, individually-granted adapters)
 
 ## Milestone 7 — The AI service
 

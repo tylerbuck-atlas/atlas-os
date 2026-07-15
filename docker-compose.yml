@@ -141,6 +141,81 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  atlas-devices:
+    build:
+      context: .
+      dockerfile: services/devices/Dockerfile
+    container_name: atlas-devices
+    environment:
+      ATLAS_BOOTSTRAP_TOKEN: ${ATLAS_BOOTSTRAP_TOKEN:?Set ATLAS_BOOTSTRAP_TOKEN in .env}
+      ATLAS_SECURITY_MODE: ${ATLAS_SECURITY_MODE:-mtls}
+      ATLAS_DEVICES_CORE_URL: https://atlas-core:8000
+      ATLAS_DEVICES_SELF_URL: https://atlas-devices:8700
+      ATLAS_DEVICES_DATABASE_PATH: /app/data/atlas-devices.db
+      ATLAS_DEVICES_TLS_DIR: /app/data/tls
+    ports:
+      - "8700:8700"
+    volumes:
+      - atlas-devices-data:/app/data
+    networks: [atlas, atlas-edge]
+    depends_on:
+      atlas-core:
+        condition: service_healthy
+    restart: unless-stopped
+
+  atlas-skills:
+    build:
+      context: .
+      dockerfile: services/skills/Dockerfile
+    container_name: atlas-skills
+    environment:
+      ATLAS_BOOTSTRAP_TOKEN: ${ATLAS_BOOTSTRAP_TOKEN:?Set ATLAS_BOOTSTRAP_TOKEN in .env}
+      ATLAS_SECURITY_MODE: ${ATLAS_SECURITY_MODE:-mtls}
+      ATLAS_SKILLS_CORE_URL: https://atlas-core:8000
+      ATLAS_SKILLS_SELF_URL: https://atlas-skills:8800
+      ATLAS_SKILLS_DATABASE_PATH: /app/data/atlas-skills.db
+      ATLAS_SKILLS_TLS_DIR: /app/data/tls
+    ports:
+      - "8800:8800"
+    volumes:
+      - atlas-skills-data:/app/data
+    networks: [atlas, atlas-edge]
+    depends_on:
+      atlas-core:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # The reference adapter simulates devices, so it needs no LAN access.
+  # A REAL protocol adapter (MQTT/Zigbee/Z-Wave) is the privacy contract's
+  # "explicit egress adapter": give it LAN reach by ALSO joining a
+  # dedicated network, e.g.
+  #     networks: [atlas, atlas-lan]
+  # with:
+  #     atlas-lan:
+  #       driver: macvlan          # or a masquerading bridge for IP-only
+  #       driver_opts: {parent: eth0}
+  # That grant is visible here, in one place, and applies to that adapter
+  # alone — the rest of Atlas stays egress-denied. USB coordinators
+  # (Zigbee/Z-Wave sticks) instead map the device: ["/dev/ttyUSB0:..."].
+  atlas-adapter-virtual:
+    build:
+      context: .
+      dockerfile: services/examples/virtual-adapter/Dockerfile
+    container_name: atlas-adapter-virtual
+    environment:
+      ATLAS_CORE_URL: https://atlas-core:8000
+      ATLAS_BOOTSTRAP_TOKEN: ${ATLAS_BOOTSTRAP_TOKEN:?Set ATLAS_BOOTSTRAP_TOKEN in .env}
+      ATLAS_SECURITY_MODE: ${ATLAS_SECURITY_MODE:-mtls}
+      ATLAS_ADAPTER_URL: https://atlas-adapter-virtual:8900
+      ATLAS_ADAPTER_TLS_DIR: /tmp/atlas-tls
+    ports:
+      - "8900:8900"
+    networks: [atlas, atlas-edge]
+    depends_on:
+      atlas-core:
+        condition: service_healthy
+    restart: unless-stopped
+
   atlas-echo:
     build:
       context: .
@@ -178,3 +253,5 @@ volumes:
   atlas-assets-data:
   atlas-planner-data:
   atlas-sentinel-data:
+  atlas-devices-data:
+  atlas-skills-data:
