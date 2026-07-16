@@ -144,6 +144,14 @@ in [docs/security.md](docs/security.md). LLM outputs are **never**
 executed directly — the Planner validates every action, default-deny
 ([docs/planner-sentinel.md](docs/planner-sentinel.md)).
 
+## Installing into a home
+
+- [INSTALL.md](INSTALL.md) — blank machine → running Atlas → first conversation.
+- [docs/field-install.md](docs/field-install.md) — the installer's playbook for putting Atlas in someone's home.
+- [docs/data-handling.md](docs/data-handling.md) — data & consent statement to sign before install.
+- [docs/homeowner-guide.md](docs/homeowner-guide.md) — the one-page guide you leave with the homeowner.
+- [docs/deployment.md](docs/deployment.md) · [docs/nodes.md](docs/nodes.md) — topologies, hardware, the node tier.
+
 ## Repository layout
 
 ```
