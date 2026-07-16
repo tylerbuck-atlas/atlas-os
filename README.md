@@ -75,7 +75,9 @@ Full details in [docs/architecture.md](docs/architecture.md).
 
 ## Quick start
 
-Requirements: Docker with the Compose plugin.
+Full walkthrough — from blank machine to talking to your house:
+**[INSTALL.md](INSTALL.md)**. The short version, given Docker with the
+Compose plugin:
 
 ```bash
 cp .env.example .env          # set ATLAS_BOOTSTRAP_TOKEN to a strong secret

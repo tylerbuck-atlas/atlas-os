@@ -217,7 +217,7 @@ services:
     restart: unless-stopped
 
   # The AI arrives last, as designed. Default backend is the built-in
-  # deterministic reasoner (zero model, zero egress). For real local
+  # deterministic stub (zero model, zero egress). For real local
   # inference, run Ollama on this machine and set ATLAS_AI_BACKEND=ollama:
   # reaching the host is this service's explicit local-inference grant —
   # uncomment extra_hosts below. Cloud model backends do not exist in
@@ -235,9 +235,9 @@ services:
       ATLAS_AI_SELF_URL: https://atlas-ai:9000
       ATLAS_AI_DATABASE_PATH: /app/data/atlas-ai.db
       ATLAS_AI_TLS_DIR: /app/data/tls
-      ATLAS_AI_BACKEND: ${ATLAS_AI_BACKEND:-builtin}
-      ATLAS_AI_OLLAMA_URL: ${ATLAS_AI_OLLAMA_URL:-http://host.docker.internal:11434}
-      ATLAS_AI_OLLAMA_MODEL: ${ATLAS_AI_OLLAMA_MODEL:-llama3.2}
+      ATLAS_AI_BACKEND: ${ATLAS_AI_BACKEND:-stub}
+      ATLAS_AI_MODEL_URL: ${ATLAS_AI_MODEL_URL:-http://host.docker.internal:11434}
+      ATLAS_AI_MODEL_NAME: ${ATLAS_AI_MODEL_NAME:-qwen3:14b}
     # extra_hosts:                       # ← the local-inference grant
     #   - "host.docker.internal:host-gateway"
     ports:
