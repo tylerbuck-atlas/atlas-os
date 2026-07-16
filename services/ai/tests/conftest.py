@@ -2,8 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # This file is part of Atlas OS <https://github.com/tylerbuck-atlas/atlas-os>.
 
-"""AI service fixtures: a fake world (memory, devices, planner) that also
-records every HTTP call the AI makes — so tests can prove what it never does."""
+"""AI service test fixtures: fake memory/devices/planner over MockTransport."""
 
 from __future__ import annotations
 
@@ -15,22 +14,21 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from atlas_ai.api.routes import router
-from atlas_ai.backends import BuiltinBackend
+from atlas_ai.backends import StubBackend
 from atlas_ai.config import AIConfig
-from atlas_ai.engine import AssistEngine
+from atlas_ai.engine import AIEngine
 from atlas_ai.store import AIStore
-from atlas_ai.truth import TruthGatherer
 from atlas_sdk.service_auth import Identity
 
 USER_TOKEN = "tok-user"
+OTHER_TOKEN = "tok-other"
 OPERATOR_TOKEN = "tok-operator"
 
 IDENTITIES = {
     USER_TOKEN: Identity("atlas.ui", "ui-1", "0.1.0"),
+    OTHER_TOKEN: Identity("atlas.other", "o-1", "0.1.0"),
     OPERATOR_TOKEN: Identity("atlas.operator", "manual-1", "cert"),
 }
-
-LIGHT_ID = "device-light-1"
 
 
 class FakeIntrospector:
@@ -54,46 +52,48 @@ class FakeAtlas:
 
 
 class FakeWorld:
+    """Memory, Devices, and Planner behind one MockTransport."""
+
     def __init__(self) -> None:
-        self.calls: list[dict] = []          # every request the AI makes
-        self.submitted_plans: list[dict] = []
-        self.plan_response = {"id": "plan-1", "status": "awaiting_approval"}
+        self.devices = [
+            {"id": "dev-lamp", "name": "Living room lamp", "kind": "light",
+             "room": "living-room", "class": 1, "online": True,
+             "commands": ["turn_on", "turn_off", "set_brightness"],
+             "state": {"on": False, "brightness": 100}},
+            {"id": "dev-temp", "name": "Hallway temperature", "kind": "sensor",
+             "room": "hallway", "class": 1, "online": True, "commands": [],
+             "state": {"temp_c": 21.5}},
+            # Devices API redacts Class 3 for non-stewards — as it would live:
+            {"id": "dev-presence", "name": "Front hall presence", "kind": "sensor",
+             "room": "hallway", "class": 3, "online": True, "commands": [],
+             "state": {"redacted": True}},
+        ]
         self.facts = {
             "system.services": [
-                {"key": "atlas.echo", "version": 2,
-                 "payload": {"status": "healthy"}, "provenance": "event:x", "class": 1},
+                {"key": "atlas.echo", "payload": {"status": "healthy"}, "class": 1},
             ],
-            "home.devices": [],
+            "home.rooms": [],
         }
-        self.devices = [
-            {"id": LIGHT_ID, "name": "Living room lamp", "kind": "light",
-             "class": 1, "commands": ["turn_on", "turn_off"],
-             "state": {"on": False}, "room": "living-room"},
-            {"id": "device-pres-1", "name": "Front hall presence", "kind": "sensor",
-             "class": 3, "commands": [], "state": {"redacted": True}, "room": "hallway"},
-        ]
+        self.plan_response: dict = {"id": "plan-1", "status": "awaiting_approval"}
+        self.plan_submissions: list[dict] = []
         self.services = {
-            "atlas.memory": [{"name": "atlas.memory", "status": "healthy",
-                              "address": "https://memory.test"}],
             "atlas.devices": [{"name": "atlas.devices", "status": "healthy",
                                "address": "https://devices.test"}],
+            "atlas.memory": [{"name": "atlas.memory", "status": "healthy",
+                              "address": "https://memory.test"}],
             "atlas.planner": [{"name": "atlas.planner", "status": "healthy",
                                "address": "https://planner.test"}],
         }
 
     def handler(self, request: httpx.Request) -> httpx.Response:
-        record = {
-            "host": request.url.host, "path": request.url.path,
-            "method": request.method, "params": dict(request.url.params),
-        }
-        self.calls.append(record)
-        if request.url.host == "memory.test":
-            namespace = request.url.path.split("/v1/facts/")[1]
-            return httpx.Response(200, json=self.facts.get(namespace, []))
-        if request.url.host == "devices.test":
+        host, path = request.url.host, request.url.path
+        if host == "devices.test" and path == "/v1/devices":
             return httpx.Response(200, json=self.devices)
-        if request.url.host == "planner.test" and request.url.path == "/v1/plans":
-            self.submitted_plans.append(json.loads(request.content))
+        if host == "memory.test" and path.startswith("/v1/facts/"):
+            namespace = path.split("/v1/facts/")[1]
+            return httpx.Response(200, json=self.facts.get(namespace, []))
+        if host == "planner.test" and path == "/v1/plans":
+            self.plan_submissions.append(json.loads(request.content))
             return httpx.Response(201, json=self.plan_response)
         return httpx.Response(404)
 
@@ -120,24 +120,16 @@ async def app(world, monkeypatch):
     application.state.store = store
 
     import atlas_ai.engine as engine_module
-    import atlas_ai.truth as truth_module
 
     async def fake_discover(*, core_url, token=None, ssl_context=None,
                             name=None, capability=None, timeout=5.0):
         return world.services.get(name, [])
 
     monkeypatch.setattr(engine_module, "discover_service", fake_discover)
-    monkeypatch.setattr(truth_module, "discover_service", fake_discover)
 
-    transport = httpx.MockTransport(world.handler)
-    atlas = FakeAtlas()
-    gatherer = TruthGatherer(
-        atlas, fact_namespaces=["system.services", "home.devices"],
-        client=httpx.AsyncClient(transport=transport),
-    )
-    engine = AssistEngine(
-        store, atlas, gatherer, BuiltinBackend(),
-        client=httpx.AsyncClient(transport=transport),
+    engine = AIEngine(
+        store, FakeAtlas(), StubBackend(),
+        client=httpx.AsyncClient(transport=httpx.MockTransport(world.handler)),
     )
     application.state.engine = engine
     application.state.introspector = FakeIntrospector()
@@ -157,9 +149,7 @@ def auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-async def assist(client, prompt, *, token=USER_TOKEN):
-    response = await client.post(
-        "/v1/assist", json={"prompt": prompt}, headers=auth(token)
-    )
+async def ask(client, prompt: str, *, token=USER_TOKEN) -> dict:
+    response = await client.post("/v1/ask", json={"prompt": prompt}, headers=auth(token))
     assert response.status_code == 200, response.text
     return response.json()

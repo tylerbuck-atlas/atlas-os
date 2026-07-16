@@ -2,10 +2,11 @@
 
 ## 1. What Atlas is
 
-Atlas OS is an AI-native **distributed operating system**. It manages
-services, devices, assets, and knowledge across one or more nodes. An AI
-model is one service inside the system — a reasoning engine over trusted
-data — never the kernel and never the source of truth.
+Atlas OS is an AI-native **distributed operating system** for the home.
+It manages services, devices, assets, and knowledge across one or more
+nodes. The AI model is one service inside the system (`atlas.ai`, see
+[ai.md](ai.md)) — a reasoning engine over trusted data — never the
+kernel and never the source of truth.
 
 ### Core philosophy
 
@@ -37,6 +38,7 @@ versioned APIs.
 | Atlas Device Manager | `atlas.devices` | Abstraction over physical and virtual devices (implemented — see [devices-skills.md](devices-skills.md)) |
 | Atlas Asset Manager | `atlas.assets` | Files, manuals, documents, and their metadata (implemented — see [memory-assets.md](memory-assets.md)) |
 | Atlas Sentinel | `atlas.sentinel` | Security monitoring, anomaly detection, enforcement (implemented — see [planner-sentinel.md](planner-sentinel.md)) |
+| Atlas AI | `atlas.ai` | Reasoning over governed truth; acts only through the Planner (implemented — see [ai.md](ai.md)) |
 
 ### Communication rules
 

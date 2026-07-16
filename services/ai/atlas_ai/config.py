@@ -41,13 +41,13 @@ class AIConfig(BaseSettings):
     )
     introspect_cache_ttl_seconds: float = Field(default=30.0, ge=0)
 
-    # Inference (local-first per docs/privacy.md)
-    #: "builtin" (deterministic, zero-model) or "ollama" (local inference).
-    backend: str = "builtin"
-    ollama_url: str = "http://host.docker.internal:11434"
-    ollama_model: str = "llama3.2"
-    #: Memory namespaces gathered as grounded truth (class <= 2 only).
-    fact_namespaces: str = "system.services,home.devices"
+    # Model backend (privacy contract: LOCAL is the default; cloud is a
+    # deliberate non-feature — see docs/ai.md)
+    backend: str = "stub"          # "stub" | "ollama"
+    model_url: str = "http://host.docker.internal:11434"
+    model_name: str = "llama3.1"
+    model_timeout_seconds: float = Field(default=120.0, gt=0)
+    max_context_items: int = Field(default=100, ge=1)
 
     # Storage
     database_path: str = "data/atlas-ai.db"
@@ -62,21 +62,20 @@ class AIConfig(BaseSettings):
             raise ValueError("ATLAS_BOOTSTRAP_TOKEN must be set (>=16 chars)")
         return v
 
-    @field_validator("backend")
-    @classmethod
-    def _validate_backend(cls, v: str) -> str:
-        lower = v.lower()
-        if lower not in ("builtin", "ollama"):
-            raise ValueError("ATLAS_AI_BACKEND must be 'builtin' or 'ollama' "
-                             "(cloud backends are opt-in adapters, not implemented)")
-        return lower
-
     @field_validator("security_mode")
     @classmethod
     def _validate_security_mode(cls, v: str) -> str:
         lower = v.lower()
         if lower not in ("mtls", "token"):
             raise ValueError("security mode must be 'mtls' or 'token'")
+        return lower
+
+    @field_validator("backend")
+    @classmethod
+    def _validate_backend(cls, v: str) -> str:
+        lower = v.lower()
+        if lower not in ("stub", "ollama"):
+            raise ValueError("ATLAS_AI_BACKEND must be 'stub' or 'ollama'")
         return lower
 
     @field_validator("log_level")

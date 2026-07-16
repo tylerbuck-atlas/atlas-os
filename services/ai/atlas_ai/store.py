@@ -2,11 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # This file is part of Atlas OS <https://github.com/tylerbuck-atlas/atlas-os>.
 
-"""Persistence for Atlas AI: the assist audit log + outbox.
-
-Prompts are personal (Class 2 by nature): the log is readable only by
-the requester and the operator, and prompt content never crosses the bus.
-"""
+"""Persistence for the AI service: the interaction audit + outbox."""
 
 from __future__ import annotations
 
@@ -19,18 +15,19 @@ import aiosqlite
 from pydantic import BaseModel
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS assists (
-    id          TEXT PRIMARY KEY,
-    requester   TEXT NOT NULL,
-    prompt      TEXT NOT NULL,
-    backend     TEXT NOT NULL,
-    answer      TEXT NOT NULL,
-    sources     TEXT NOT NULL,
-    plan_id     TEXT,
-    plan_status TEXT,
-    created_at  TEXT NOT NULL
+CREATE TABLE IF NOT EXISTS interactions (
+    id           TEXT PRIMARY KEY,
+    requester    TEXT NOT NULL,
+    prompt       TEXT NOT NULL,
+    kind         TEXT NOT NULL,
+    answer       TEXT,
+    rationale    TEXT NOT NULL DEFAULT '',
+    plan_id      TEXT,
+    plan_status  TEXT,
+    model        TEXT NOT NULL,
+    context_size INTEGER NOT NULL,
+    created_at   TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_assists_requester ON assists (requester, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS events (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,23 +47,25 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class AssistRecord(BaseModel):
+class Interaction(BaseModel):
     id: str
     requester: str
     prompt: str
-    backend: str
-    answer: str
-    sources: list[str]
-    plan_id: str | None = None
-    plan_status: str | None = None
+    kind: str
+    answer: str | None
+    rationale: str
+    plan_id: str | None
+    plan_status: str | None
+    model: str
+    context_size: int
     created_at: datetime
 
 
-def _row(r: aiosqlite.Row) -> AssistRecord:
-    return AssistRecord(
-        id=r["id"], requester=r["requester"], prompt=r["prompt"], backend=r["backend"],
-        answer=r["answer"], sources=json.loads(r["sources"]),
-        plan_id=r["plan_id"], plan_status=r["plan_status"],
+def _row(r: aiosqlite.Row) -> Interaction:
+    return Interaction(
+        id=r["id"], requester=r["requester"], prompt=r["prompt"], kind=r["kind"],
+        answer=r["answer"], rationale=r["rationale"], plan_id=r["plan_id"],
+        plan_status=r["plan_status"], model=r["model"], context_size=r["context_size"],
         created_at=datetime.fromisoformat(r["created_at"]),
     )
 
@@ -95,36 +94,41 @@ class AIStore:
             raise RuntimeError("AIStore is not open")
         return self._db
 
-    async def record_assist(
-        self, *, requester: str, prompt: str, backend: str, answer: str,
-        sources: list[str], plan_id: str | None, plan_status: str | None,
-    ) -> AssistRecord:
-        record = AssistRecord(
-            id=uuid.uuid4().hex, requester=requester, prompt=prompt,
-            backend=backend, answer=answer, sources=sources,
-            plan_id=plan_id, plan_status=plan_status, created_at=utcnow(),
+    async def record(
+        self, *, requester: str, prompt: str, kind: str, answer: str | None,
+        rationale: str, plan_id: str | None, plan_status: str | None,
+        model: str, context_size: int,
+    ) -> Interaction:
+        interaction = Interaction(
+            id=uuid.uuid4().hex, requester=requester, prompt=prompt, kind=kind,
+            answer=answer, rationale=rationale, plan_id=plan_id,
+            plan_status=plan_status, model=model, context_size=context_size,
+            created_at=utcnow(),
         )
         await self.db.execute(
-            """INSERT INTO assists (id, requester, prompt, backend, answer, sources,
-                                    plan_id, plan_status, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO interactions (id, requester, prompt, kind, answer, rationale,
+                   plan_id, plan_status, model, context_size, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                record.id, record.requester, record.prompt, record.backend,
-                record.answer, json.dumps(record.sources),
-                record.plan_id, record.plan_status, record.created_at.isoformat(),
+                interaction.id, requester, prompt, kind, answer, rationale,
+                plan_id, plan_status, model, context_size,
+                interaction.created_at.isoformat(),
             ),
         )
         await self.db.commit()
-        return record
+        return interaction
 
-    async def list_assists(
+    async def list(
         self, *, requester: str | None = None, limit: int = 100
-    ) -> list[AssistRecord]:
+    ) -> list[Interaction]:
         if requester is None:
-            query, params = ("SELECT * FROM assists ORDER BY created_at DESC LIMIT ?", (limit,))
+            query, params = (
+                "SELECT * FROM interactions ORDER BY created_at DESC LIMIT ?", (limit,)
+            )
         else:
             query, params = (
-                "SELECT * FROM assists WHERE requester = ? ORDER BY created_at DESC LIMIT ?",
+                "SELECT * FROM interactions WHERE requester = ? "
+                "ORDER BY created_at DESC LIMIT ?",
                 (requester, limit),
             )
         async with self.db.execute(query, params) as cur:

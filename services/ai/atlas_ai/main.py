@@ -17,9 +17,8 @@ from fastapi import FastAPI
 from . import SERVICE_NAME, __version__
 from .api.routes import router
 from .config import AIConfig
-from .backends import BuiltinBackend, OllamaBackend
-from .engine import AssistEngine
-from .truth import TruthGatherer
+from .backends import OllamaBackend, StubBackend
+from .engine import AIEngine
 from .store import AIStore
 
 log = logging.getLogger("atlas.ai")
@@ -40,8 +39,8 @@ def build_atlas_service(config: AIConfig) -> AtlasService:
         version=__version__,
         address=config.self_url,
         health_url=f"{config.self_url}/healthz",
-        capabilities=["ai.assist"],
-        metadata={"description": "Atlas AI — reasoning over governed truth; proposals via the Planner only"},
+        capabilities=["ai.ask"],
+        metadata={"description": "Atlas AI — reasoning over governed truth; acts only via the Planner"},
         core_url=config.core_url,
         bootstrap_token=config.bootstrap_token,
         security_mode=config.security_mode,
@@ -57,7 +56,7 @@ async def _lifespan(app: FastAPI):
     store = AIStore(config.database_path)
     await store.open()
     app.state.store = store
-    log.info("assist log initialized (db=%s)", config.database_path)
+    log.info("interaction store initialized (db=%s)", config.database_path)
 
     atlas: AtlasService = app.state.atlas
     if config.security_mode == "mtls":
@@ -82,22 +81,20 @@ async def _lifespan(app: FastAPI):
     await outbox.start()
 
     if config.backend == "ollama":
-        backend = OllamaBackend(url=config.ollama_url, model=config.ollama_model)
-        log.warning("local inference via Ollama at %s (model %s) — this reach "
-                    "is an explicit local-inference grant (docs/ai.md)",
-                    config.ollama_url, config.ollama_model)
+        backend = OllamaBackend(
+            url=config.model_url, model=config.model_name,
+            timeout=config.model_timeout_seconds,
+        )
+        log.info("model backend: LOCAL ollama (%s @ %s)", config.model_name, config.model_url)
     else:
-        backend = BuiltinBackend()
-        log.info("builtin deterministic backend (zero-model); set "
-                 "ATLAS_AI_BACKEND=ollama for local LLM inference")
-    gatherer = TruthGatherer(
-        atlas, fact_namespaces=[n.strip() for n in config.fact_namespaces.split(",") if n.strip()]
-    )
-    engine = AssistEngine(store, atlas, gatherer, backend)
+        backend = StubBackend()
+        log.warning("model backend: stub (deterministic lookups only) — "
+                    "set ATLAS_AI_BACKEND=ollama for real local inference")
+    engine = AIEngine(store, atlas, backend, max_context_items=config.max_context_items)
     app.state.engine = engine
 
-    log.info("Atlas AI ready (%s v%s) — one service among many; never the "
-             "source of truth; acts only through the Planner", SERVICE_NAME, __version__)
+    log.info("Atlas AI ready (%s v%s) — one service among many; "
+             "never the source of truth", SERVICE_NAME, __version__)
     try:
         yield
     finally:
@@ -119,7 +116,7 @@ def create_app(
     app = FastAPI(
         title="Atlas AI",
         version=__version__,
-        description="Reasoning over governed truth. Proposes; never acts directly.",
+        description="Reasoning over governed truth. Proposals become plans; the Planner decides.",
         lifespan=_lifespan,
     )
     app.state.config = config

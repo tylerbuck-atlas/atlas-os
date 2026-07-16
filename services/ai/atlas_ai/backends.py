@@ -2,25 +2,26 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # This file is part of Atlas OS <https://github.com/tylerbuck-atlas/atlas-os>.
 
-"""Inference backends — where the model runs, always at arm's length.
+"""Model backends.
 
-Per the privacy contract (docs/privacy.md): **local inference is the
-default**. Two backends ship:
+The model is a replaceable component behind a small protocol — exactly
+like every other Atlas backend. Two implementations ship:
 
-- ``builtin`` — a deterministic, zero-model reasoner. No network, no
-  weights, no surprises: it parses a handful of household intents and
-  summarizes gathered truth. Atlas is fully functional without any LLM.
-- ``ollama`` — local inference against an Ollama server on the
-  operator's own hardware. Reaching it is an *explicit local-inference
-  grant* declared in Compose; the model still only sees gathered truth.
+- **OllamaBackend** — local inference on the operator's own hardware
+  (privacy contract: local is the default; the model URL is an explicit,
+  visible grant).
+- **StubBackend** — deterministic keyword reasoning. No model at all;
+  used for tests, CI, and first boot so the OS never *requires* a model
+  to exist. Honest about being a stub.
 
-Cloud backends are deliberately absent from v1: the privacy contract
-allows them only as opt-in adapters, never eligible for Class-3 data,
-and none is implemented until someone consciously builds that adapter.
+A cloud backend is deliberately absent. The privacy contract permits one
+only as an explicit opt-in adapter that can never receive Class 3 data;
+implementing it is a conscious future decision, not a default.
 
-Whatever any backend returns is DATA. It is parsed strictly into
-:class:`InferenceResult`; malformed output degrades to answer-only —
-never into action.
+Whatever the backend replies is a **proposal** — parsed, never executed.
+Malformed output degrades to an informational answer; hallucinated
+actions die in the Planner's default-deny. The pipes, not the prompt,
+enforce safety.
 """
 
 from __future__ import annotations
@@ -28,158 +29,180 @@ from __future__ import annotations
 import json
 import logging
 import re
+from dataclasses import dataclass, field
 
 import httpx
-from pydantic import BaseModel, Field, ValidationError
 
 log = logging.getLogger("atlas.ai.backend")
 
 
-class ActionProposal(BaseModel):
-    capability: str = Field(max_length=200)
-    params: dict = Field(default_factory=dict)
+@dataclass
+class Proposal:
+    kind: str  # "answer" | "plan"
+    answer: str | None = None
+    actions: list[dict] = field(default_factory=list)
+    rationale: str = ""
 
 
-class InferenceResult(BaseModel):
-    answer: str = Field(max_length=8000)
-    proposed_actions: list[ActionProposal] = Field(default_factory=list, max_length=10)
+class StubBackend:
+    """Deterministic, model-free reasoning over the gathered context.
 
+    Understands two things: device commands ("turn on/off X",
+    "set X brightness to N") and simple lookups over facts. Everything
+    else gets an honest 'I need a real model for that.'
+    """
 
-# -- builtin (deterministic, zero-model) ---------------------------------------
+    name = "stub"
 
-_TURN = re.compile(r"\bturn\s+(on|off)\s+(?:the\s+)?(.+?)\s*$", re.IGNORECASE)
-_STATUS = re.compile(r"\b(status|health|how\s+is|what.?s\s+(going\s+on|the\s+state))\b", re.IGNORECASE)
+    async def propose(self, goal: str, devices: list[dict], facts: list[dict]) -> Proposal:
+        lower = goal.lower()
 
-
-def _match_device(name_fragment: str, devices: list[dict]) -> dict | None:
-    fragment = name_fragment.strip().lower()
-    for device in devices:
-        if fragment == device.get("name", "").lower():
-            return device
-    for device in devices:
-        if fragment in device.get("name", "").lower():
-            return device
-    return None
-
-
-class BuiltinBackend:
-    """No model at all — legible, testable household intents."""
-
-    name = "builtin"
-
-    async def infer(self, prompt: str, truth: dict) -> InferenceResult:
-        devices = truth.get("devices", [])
-
-        match = _TURN.search(prompt)
-        if match:
-            verb, target = match.group(1).lower(), match.group(2)
-            device = _match_device(target, devices)
-            if device is None:
-                known = ", ".join(d["name"] for d in devices) or "none I can see"
-                return InferenceResult(
-                    answer=f"I couldn't find a device matching {target!r}. "
-                           f"Devices I can see: {known}."
+        m = re.search(r"\bset\s+(?:the\s+)?(.+?)\s+brightness\s+to\s+(\d+)", lower)
+        if m:
+            device = self._find_device(devices, m.group(1), "set_brightness")
+            if device:
+                return Proposal(
+                    kind="plan",
+                    actions=[{
+                        "capability": "devices.command",
+                        "params": {"device_id": device["id"], "command": "set_brightness",
+                                   "params": {"level": int(m.group(2))}},
+                    }],
+                    rationale=f"Set {device['name']!r} brightness to {m.group(2)}%.",
                 )
-            command = f"turn_{verb}"
-            if command not in device.get("commands", []):
-                return InferenceResult(
-                    answer=f"{device['name']} does not accept {command!r} "
-                           f"(accepts: {device.get('commands', [])})."
+
+        m = re.search(r"\bturn\s+(on|off)\s+(?:the\s+)?(.+)", lower)
+        if m:
+            command = f"turn_{m.group(1)}"
+            device = self._find_device(devices, m.group(2).strip(" .?!"), command)
+            if device:
+                return Proposal(
+                    kind="plan",
+                    actions=[{
+                        "capability": "devices.command",
+                        "params": {"device_id": device["id"], "command": command},
+                    }],
+                    rationale=f"{command} on {device['name']!r} via its adapter.",
                 )
-            return InferenceResult(
-                answer=f"Proposing to {verb.replace('_', ' ')} {device['name']} — "
-                       "the Planner and your policies decide whether it happens.",
-                proposed_actions=[ActionProposal(
-                    capability="devices.command",
-                    params={"device_id": device["id"], "command": command},
-                )],
+            return Proposal(
+                kind="answer",
+                answer="I could not find an online device matching that description "
+                       "which accepts that command.",
+                rationale="no matching device",
             )
 
-        if _STATUS.search(prompt):
-            services = truth.get("facts", {}).get("system.services", {})
-            up = [k for k, v in services.items() if v["payload"].get("status") == "healthy"]
-            down = [k for k, v in services.items() if v["payload"].get("status") != "healthy"]
-            device_bits = [
-                f"{d['name']}: {json.dumps(d.get('state', {}))}" for d in devices[:10]
-            ]
-            parts = [f"{len(up)} service(s) healthy" + (f", attention needed: {down}" if down else "")]
-            if device_bits:
-                parts.append("devices — " + "; ".join(device_bits))
-            sources = truth.get("sources", [])
-            return InferenceResult(
-                answer=". ".join(parts) + f" (sources: {', '.join(sources)})"
-            )
-
-        return InferenceResult(
-            answer="I can report household status and propose device commands "
-                   "(e.g. 'turn on the living room lamp'). For open-ended "
-                   "reasoning, configure a local model: ATLAS_AI_BACKEND=ollama "
-                   "(docs/ai.md)."
+        # Informational: surface matching facts/devices, honestly.
+        hits: list[str] = []
+        for device in devices:
+            haystack = f"{device.get('name','')} {device.get('kind','')} {device.get('room','')}".lower()
+            if any(w in haystack for w in lower.split() if len(w) > 3):
+                state = device.get("state", {})
+                if state.get("redacted"):
+                    hits.append(
+                        f"{device['name']}: state withheld (Class {device.get('class')} — "
+                        "I am not permitted to read it)"
+                    )
+                else:
+                    hits.append(f"{device['name']}: {state}")
+        for fact in facts:
+            if any(w in fact.get("key", "").lower() for w in lower.split() if len(w) > 3):
+                hits.append(f"{fact['key']}: {fact.get('payload')}")
+        if hits:
+            return Proposal(kind="answer",
+                            answer="From the household's records: " + "; ".join(hits[:5]),
+                            rationale="fact lookup")
+        return Proposal(
+            kind="answer",
+            answer="I don't have facts matching that question, and the stub backend "
+                   "cannot reason beyond lookups — configure a local model "
+                   "(ATLAS_AI_BACKEND=ollama) for open-ended questions.",
+            rationale="stub limitation",
         )
 
-
-# -- ollama (local inference) -----------------------------------------------------
-
-_SYSTEM_PROMPT = """You are Atlas AI, the reasoning service of a home operating system.
-You will receive GROUNDED TRUTH (facts and devices) and a user request.
-Rules you cannot break (the OS enforces them anyway):
-- Only the provided truth is real. Never invent devices, states, or facts.
-- You cannot act. You may only PROPOSE actions; a policy engine and a human decide.
-Respond with ONLY a JSON object: {"answer": "<text for the user>",
-"proposed_actions": [{"capability": "devices.command",
-"params": {"device_id": "<id from truth>", "command": "<command from that device's list>"}}]}
-Use an empty proposed_actions list when no action is needed."""
+    @staticmethod
+    def _find_device(devices: list[dict], fragment: str, command: str) -> dict | None:
+        fragment = fragment.strip()
+        for device in devices:
+            if not device.get("online", True):
+                continue
+            if command not in device.get("commands", []):
+                continue
+            if fragment in device.get("name", "").lower():
+                return device
+        return None
 
 
 class OllamaBackend:
-    """Local model via Ollama — the operator's own hardware."""
+    """Local inference via an Ollama server on the operator's hardware."""
 
-    name = "ollama"
-
-    def __init__(
-        self, *, url: str, model: str, timeout: float = 120.0,
-        client: httpx.AsyncClient | None = None,
-    ) -> None:
+    def __init__(self, *, url: str, model: str, timeout: float = 120.0) -> None:
         self._url = url.rstrip("/")
         self._model = model
-        self._client = client or httpx.AsyncClient(timeout=timeout)
+        self._timeout = timeout
+        self.name = f"ollama:{model}"
 
-    async def close(self) -> None:
-        await self._client.aclose()
+    _SYSTEM = (
+        "You are Atlas, the reasoning service of a home operating system. "
+        "You are NOT the source of truth: answer ONLY from the provided facts "
+        "and devices; if they do not contain the answer, say so. You cannot "
+        "act directly: to act, propose a plan; every plan is validated against "
+        "operator policy before anything runs.\n"
+        "Respond ONLY with a JSON object: "
+        '{"kind": "answer"|"plan", "answer": string|null, '
+        '"actions": [{"capability": "devices.command", "params": '
+        '{"device_id": string, "command": string, "params": object}}], '
+        '"rationale": string}. '
+        "Use device ids and commands exactly as given; never invent them."
+    )
 
-    async def infer(self, prompt: str, truth: dict) -> InferenceResult:
+    async def propose(self, goal: str, devices: list[dict], facts: list[dict]) -> Proposal:
+        context = json.dumps({"devices": devices, "facts": facts}, default=str)[:12000]
         try:
-            response = await self._client.post(
-                f"{self._url}/api/chat",
-                json={
-                    "model": self._model,
-                    "stream": False,
-                    "format": "json",
-                    "messages": [
-                        {"role": "system", "content": _SYSTEM_PROMPT},
-                        {"role": "user", "content": (
-                            "GROUNDED TRUTH:\n" + json.dumps(truth, default=str)
-                            + "\n\nREQUEST:\n" + prompt
-                        )},
-                    ],
-                },
-            )
-            response.raise_for_status()
-            content = response.json()["message"]["content"]
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                response = await client.post(
+                    f"{self._url}/api/chat",
+                    json={
+                        "model": self._model,
+                        "stream": False,
+                        "format": "json",
+                        "messages": [
+                            {"role": "system", "content": self._SYSTEM},
+                            {"role": "user",
+                             "content": f"CONTEXT:\n{context}\n\nREQUEST: {goal}"},
+                        ],
+                    },
+                )
+                response.raise_for_status()
+                content = response.json()["message"]["content"]
         except (httpx.HTTPError, KeyError, ValueError) as exc:
-            log.warning("ollama backend unavailable: %s", exc)
-            return InferenceResult(
-                answer="The local model backend is unavailable "
-                       f"({type(exc).__name__}); no reasoning was performed."
-            )
+            log.warning("model backend unavailable: %s", exc)
+            return Proposal(kind="answer",
+                            answer=f"The local model is unavailable ({exc}).",
+                            rationale="backend error")
         return parse_model_output(content)
 
 
-def parse_model_output(content: str) -> InferenceResult:
-    """Model output is data: parse strictly, degrade safely."""
+def parse_model_output(content: str) -> Proposal:
+    """Model output is DATA. Parse defensively; on any deviation, degrade
+    to an informational answer — malformed output can never become action."""
     try:
-        raw = json.loads(content)
-        return InferenceResult.model_validate(raw)
-    except (json.JSONDecodeError, ValidationError):
-        log.warning("model output failed strict parsing; degrading to answer-only")
-        return InferenceResult(answer=content[:8000], proposed_actions=[])
+        data = json.loads(content)
+        assert isinstance(data, dict)
+    except (json.JSONDecodeError, AssertionError):
+        return Proposal(kind="answer", answer=content[:2000],
+                        rationale="model output was not valid JSON; treated as text")
+    kind = data.get("kind")
+    actions = data.get("actions") or []
+    valid_actions = [
+        a for a in actions
+        if isinstance(a, dict) and isinstance(a.get("capability"), str)
+        and isinstance(a.get("params"), dict)
+    ]
+    if kind == "plan" and valid_actions:
+        return Proposal(kind="plan", actions=valid_actions,
+                        rationale=str(data.get("rationale", ""))[:1000])
+    return Proposal(
+        kind="answer",
+        answer=str(data.get("answer") or content)[:2000],
+        rationale=str(data.get("rationale", ""))[:1000],
+    )

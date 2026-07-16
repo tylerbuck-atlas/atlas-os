@@ -46,6 +46,9 @@ among many, and never the source of truth.
   adapters own protocols; commands enter only through the Planner.
 - **Atlas Skill Manager** — signed, versioned capability packages,
   artifact-verified against the Asset Manager.
+- **Atlas AI** — the model, last and least privileged: local inference,
+  grounded in governed truth, Class-3 blind, acting only through the
+  Planner's default-deny gate.
 - **Atlas AI** — reasons over governed truth (never Class 3), runs a
   local-first backend, and proposes everything through the Planner. It
   cannot act directly.
@@ -68,6 +71,7 @@ between services.
 | **Atlas Memory**     | Durable, queryable state                          | ✅ Milestone 4 |
 | **Atlas Event Bus**  | Inter-service messaging                           | ✅ Milestone 2 |
 | **Atlas Skill Manager** | Capability packages                            | ✅ Milestone 6 |
+| **Atlas AI**         | Reasoning over governed truth                     | ✅ Milestone 7 |
 | **Atlas Device Manager** | Physical/virtual device abstraction           | ✅ Milestone 6 |
 | **Atlas Asset Manager** | Files, manuals, documents                      | ✅ Milestone 4 |
 | **Atlas Sentinel**   | Security monitoring and enforcement               | ✅ Milestone 5 |
@@ -160,6 +164,7 @@ atlas-os/
 │   ├── sentinel/              # Atlas Sentinel (anomaly monitoring)
 │   ├── devices/               # Atlas Device Manager (adapters own protocols)
 │   ├── skills/                # Atlas Skill Manager (signed packages)
+│   ├── ai/                    # Atlas AI (reasoning; acts only via the Planner)
 │   ├── ai/                    # Atlas AI (reasons over truth; proposes only)
 │   └── examples/              # echo (service contract), virtual-adapter (adapter contract)
 ├── docker-compose.yml

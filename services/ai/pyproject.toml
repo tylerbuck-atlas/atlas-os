@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "atlas-ai"
 version = "0.1.0"
-description = "Atlas AI — reasoning over governed truth; proposals via the Planner only"
+description = "Atlas AI — reasoning over governed truth; acts only via the Planner"
 license = {text = "AGPL-3.0-only"}
 authors = [{name = "Tyler Buck", email = "tyler.buck123@gmail.com"}]
 requires-python = ">=3.11"

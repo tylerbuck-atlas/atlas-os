@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # This file is part of Atlas OS <https://github.com/tylerbuck-atlas/atlas-os>.
 
-"""Atlas AI — the reasoning service. One service among many, never the
-source of truth, never a direct actor."""
+"""Atlas AI — the reasoning service. One service among many; never the
+source of truth; no path to action except through the Planner."""
 
 __version__ = "0.1.0"
 
