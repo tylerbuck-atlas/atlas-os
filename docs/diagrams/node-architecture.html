@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atlas OS — Node ↔ Central Node Architecture & Data Flow</title>
+<style>
+  :root {
+    --bg:#0d1117; --surface:#161b22; --surface2:#1c2129; --border:#2d333c;
+    --text:#e6e9ee; --muted:#9aa4b2; --accent:#58a6ff;
+    --truth:#3fb950; --action:#d29922; --dim:#6e7681;
+    --mono: ui-monospace,"SF Mono","Cascadia Code",Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font:15px/1.55 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:40px 20px}
+  .wrap{max-width:980px;margin:0 auto}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+  h1{font-size:26px;letter-spacing:-.01em;margin-bottom:6px}
+  .sub{color:var(--muted);max-width:760px;margin-bottom:26px;font-size:14.5px}
+  svg{width:100%;height:auto;display:block;background:var(--bg)}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px}
+  .legend{display:flex;gap:26px;flex-wrap:wrap;margin:14px 2px 30px;font-size:13.5px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:8px}
+  .sw{display:inline-block;width:26px;height:0;border-top:3px solid var(--truth);border-radius:2px}
+  .sw.action{border-top:3px dashed var(--action)}
+  .sw.gray{border-top:2px solid var(--dim)}
+  h2{font-size:17px;margin:26px 0 10px}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  ol{margin-left:20px;font-size:14px;color:#c4ccd6}
+  li{margin:7px 0}
+  li b{color:var(--text)}
+  .truth-h{color:var(--truth);font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}
+  .action-h{color:var(--action);font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}
+  .notes{margin-top:26px;border-top:1px solid var(--border);padding-top:16px;color:var(--muted);font-size:13.5px}
+  .notes b{color:var(--text)}
+  code{font-family:var(--mono);font-size:.9em;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+  @media (max-width:700px){.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="kicker">Atlas OS · Field Nodes ↔ Central Node</div>
+<h1>How truth flows up, and action flows down</h1>
+<p class="sub">ESP32 field nodes vary by location — each carries the sensors and actuators its room needs —
+but every one of them speaks to the central node through the same adapter contract. Truth (readings) climbs
+into governed memory; action (commands) descends only through the Planner's default-deny gate.</p>
+
+<div class="panel">
+<svg viewBox="0 0 900 668" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI',Roboto,Arial,sans-serif">
+  <defs>
+    <marker id="aT" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/>
+    </marker>
+    <marker id="aA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#d29922"/>
+    </marker>
+    <marker id="aG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6e7681"/>
+    </marker>
+  </defs>
+
+  <!-- ══ HUB NODE ══ -->
+  <rect x="40" y="46" width="820" height="434" rx="12" fill="#11161d" stroke="#58a6ff" stroke-width="1.4"/>
+  <text x="58" y="72" fill="#58a6ff" font-size="13" font-weight="700" letter-spacing="1">HUB / CENTRAL NODE</text>
+  <text x="230" y="72" fill="#9aa4b2" font-size="12">Proxmox VM or mini-PC · Docker · every arrow inside is mutual TLS · egress-denied (✕ internet)</text>
+
+  <!-- left column -->
+  <rect x="70" y="110" width="190" height="58" rx="8" fill="#161b22" stroke="#2d333c"/>
+  <text x="82" y="133" fill="#e6e9ee" font-size="13.5" font-weight="600">atlas.eventbus</text>
+  <text x="82" y="151" fill="#9aa4b2" font-size="11.5">durable pub/sub · at-least-once</text>
+
+  <rect x="70" y="205" width="190" height="58" rx="8" fill="#161b22" stroke="#2d333c"/>
+  <text x="82" y="228" fill="#e6e9ee" font-size="13.5" font-weight="600">atlas.memory</text>
+  <text x="82" y="246" fill="#9aa4b2" font-size="11.5">facts · classes 0–3 · history</text>
+
+  <rect x="70" y="315" width="190" height="58" rx="8" fill="#161b22" stroke="#2d333c"/>
+  <text x="82" y="338" fill="#e6e9ee" font-size="13.5" font-weight="600">atlas.sentinel</text>
+  <text x="82" y="356" fill="#9aa4b2" font-size="11.5">watches events · raises alerts</text>
+
+  <!-- center column -->
+  <rect x="355" y="160" width="215" height="62" rx="8" fill="#161b22" stroke="#d29922"/>
+  <text x="367" y="184" fill="#e6e9ee" font-size="13.5" font-weight="600">atlas.planner</text>
+  <text x="367" y="202" fill="#9aa4b2" font-size="11.5">default-deny policy · approval · audit</text>
+
+  <rect x="355" y="290" width="215" height="62" rx="8" fill="#161b22" stroke="#2d333c"/>
+  <text x="367" y="314" fill="#e6e9ee" font-size="13.5" font-weight="600">atlas.devices</text>
+  <text x="367" y="332" fill="#9aa4b2" font-size="11.5">device abstraction · steward routing</text>
+
+  <rect x="355" y="398" width="215" height="54" rx="8" fill="#161b22" stroke="#3fb950"/>
+  <text x="367" y="420" fill="#e6e9ee" font-size="13.5" font-weight="600">atlas.adapter.esphome</text>
+  <text x="367" y="437" fill="#9aa4b2" font-size="11.5">protocol steward · holds the LAN grant</text>
+
+  <!-- right column -->
+  <rect x="625" y="110" width="205" height="58" rx="8" fill="#161b22" stroke="#2d333c"/>
+  <text x="637" y="133" fill="#e6e9ee" font-size="13.5" font-weight="600">atlas.ai  (+ Ollama)</text>
+  <text x="637" y="151" fill="#9aa4b2" font-size="11.5">local GPU inference · Class-3 blind</text>
+
+  <rect x="625" y="205" width="205" height="58" rx="8" fill="#161b22" stroke="#2d333c"/>
+  <text x="637" y="228" fill="#e6e9ee" font-size="13.5" font-weight="600">atlas.core</text>
+  <text x="637" y="246" fill="#9aa4b2" font-size="11.5">CA · registry · health monitor</text>
+  <text x="637" y="285" fill="#6e7681" font-size="11">issues every service's 24 h mTLS cert;</text>
+  <text x="637" y="299" fill="#6e7681" font-size="11">signs firmware for field-node OTA</text>
+
+  <rect x="625" y="315" width="205" height="58" rx="8" fill="#161b22" stroke="#2d333c" opacity="0.55"/>
+  <text x="637" y="338" fill="#9aa4b2" font-size="13" font-weight="600">atlas.assets · atlas.skills</text>
+  <text x="637" y="356" fill="#6e7681" font-size="11.5">firmware images · signed manifests</text>
+
+  <!-- ══ TRUTH FLOW (green, upward) ══ -->
+  <!-- T1 bedroom -> adapter -->
+  <polyline points="180,540 180,500 400,500 400,456" fill="none" stroke="#3fb950" stroke-width="2.2" marker-end="url(#aT)"/>
+  <circle cx="180" cy="522" r="10" fill="#0d1117" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="180" y="526" fill="#3fb950" font-size="11" font-weight="700" text-anchor="middle">1</text>
+  <!-- T2 adapter -> devices -->
+  <line x1="430" y1="398" x2="430" y2="356" stroke="#3fb950" stroke-width="2.2" marker-end="url(#aT)"/>
+  <circle cx="430" cy="377" r="10" fill="#0d1117" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="430" y="381" fill="#3fb950" font-size="11" font-weight="700" text-anchor="middle">2</text>
+  <!-- T3a devices -> memory -->
+  <polyline points="355,314 305,314 305,240 264,240" fill="none" stroke="#3fb950" stroke-width="2.2" marker-end="url(#aT)"/>
+  <circle cx="305" cy="277" r="10" fill="#0d1117" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="305" y="281" fill="#3fb950" font-size="11" font-weight="700" text-anchor="middle">3</text>
+  <text x="278" y="262" fill="#3fb950" font-size="10.5" text-anchor="middle">fact</text>
+  <!-- T3b devices -> bus -->
+  <polyline points="355,300 325,300 325,142 264,142" fill="none" stroke="#3fb950" stroke-width="2.2" marker-end="url(#aT)"/>
+  <text x="343" y="205" fill="#3fb950" font-size="10.5" text-anchor="middle" transform="rotate(-90 343 205)">event (redacted ≥ C2)</text>
+  <!-- T4 bus -> sentinel -->
+  <line x1="140" y1="168" x2="140" y2="311" stroke="#3fb950" stroke-width="2.2" marker-end="url(#aT)"/>
+  <circle cx="140" cy="240" r="10" fill="#0d1117" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="140" y="244" fill="#3fb950" font-size="11" font-weight="700" text-anchor="middle">4</text>
+
+  <!-- ══ ACTION FLOW (amber, downward) ══ -->
+  <!-- A1 ai -> planner -->
+  <polyline points="660,168 660,191 574,191" fill="none" stroke="#d29922" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#aA)"/>
+  <circle cx="660" cy="180" r="10" fill="#0d1117" stroke="#d29922" stroke-width="1.5"/>
+  <text x="660" y="184" fill="#d29922" font-size="11" font-weight="700" text-anchor="middle">1</text>
+  <!-- A2 planner -> devices -->
+  <line x1="497" y1="222" x2="497" y2="286" stroke="#d29922" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#aA)"/>
+  <circle cx="497" cy="253" r="10" fill="#0d1117" stroke="#d29922" stroke-width="1.5"/>
+  <text x="497" y="257" fill="#d29922" font-size="11" font-weight="700" text-anchor="middle">2</text>
+  <!-- A3 devices -> adapter -->
+  <line x1="500" y1="352" x2="500" y2="394" stroke="#d29922" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#aA)"/>
+  <circle cx="500" cy="373" r="10" fill="#0d1117" stroke="#d29922" stroke-width="1.5"/>
+  <text x="500" y="377" fill="#d29922" font-size="11" font-weight="700" text-anchor="middle">3</text>
+  <!-- A4 adapter -> garage node -->
+  <polyline points="520,456 520,500 470,500 470,536" fill="none" stroke="#d29922" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#aA)"/>
+  <circle cx="520" cy="522" r="10" fill="#0d1117" stroke="#d29922" stroke-width="1.5"/>
+  <text x="520" y="526" fill="#d29922" font-size="11" font-weight="700" text-anchor="middle">4</text>
+
+  <!-- LAN boundary label -->
+  <text x="58" y="508" fill="#6e7681" font-size="11.5">home LAN / IoT VLAN boundary — only the adapter crosses it; per-device encryption keys; ✕ no internet egress anywhere</text>
+
+  <!-- hallway stub -->
+  <line x1="740" y1="540" x2="740" y2="480" stroke="#6e7681" stroke-width="1.6" marker-end="url(#aG)" stroke-dasharray="3 4"/>
+  <text x="752" y="512" fill="#6e7681" font-size="10.5">same contract</text>
+
+  <!-- ══ FIELD TIER ══ -->
+  <rect x="40" y="520" width="820" height="128" rx="12" fill="none" stroke="#2d333c" stroke-dasharray="6 5"/>
+  <text x="748" y="642" fill="#6e7681" font-size="12" font-weight="700" letter-spacing="1">FIELD TIER · ESP32 NODES</text>
+
+  <rect x="70" y="540" width="220" height="84" rx="8" fill="#161b22" stroke="#2d333c"/>
+  <text x="82" y="562" fill="#e6e9ee" font-size="13" font-weight="600">Bedroom · ESP32-S3</text>
+  <text x="82" y="580" fill="#9aa4b2" font-size="11.5">temp / humidity (Class 1)</text>
+  <text x="82" y="596" fill="#9aa4b2" font-size="11.5">mmWave presence (Class 3)</text>
+  <text x="82" y="612" fill="#6e7681" font-size="10.5">Wi-Fi · sensors only</text>
+
+  <rect x="350" y="540" width="220" height="84" rx="8" fill="#161b22" stroke="#2d333c"/>
+  <text x="362" y="562" fill="#e6e9ee" font-size="13" font-weight="600">Garage · ESP32 + PoE</text>
+  <text x="362" y="580" fill="#9aa4b2" font-size="11.5">door contact (Class 1)</text>
+  <text x="362" y="596" fill="#9aa4b2" font-size="11.5">relay — door opener (actuator)</text>
+  <text x="362" y="612" fill="#6e7681" font-size="10.5">Ethernet + PoE · sense + act</text>
+
+  <rect x="630" y="540" width="220" height="84" rx="8" fill="#161b22" stroke="#2d333c"/>
+  <text x="642" y="562" fill="#e6e9ee" font-size="13" font-weight="600">Hallway · ESP32-C6</text>
+  <text x="642" y="580" fill="#9aa4b2" font-size="11.5">Zigbee / Thread radio bridge</text>
+  <text x="642" y="596" fill="#9aa4b2" font-size="11.5">carries battery devices into Atlas</text>
+  <text x="642" y="612" fill="#6e7681" font-size="10.5">Wi-Fi or PoE · varies by location</text>
+</svg>
+</div>
+
+<div class="legend">
+  <span><span class="sw"></span> truth flow — readings climbing into governed memory</span>
+  <span><span class="sw action"></span> action flow — commands descending through the Planner</span>
+  <span><span class="sw gray"></span> same adapter contract, any node configuration</span>
+</div>
+
+<div class="cols">
+  <div>
+    <div class="truth-h">▲ Truth: sensor → memory (green ①–④)</div>
+    <ol>
+      <li><b>① Report.</b> The ESP32 pushes a reading to the adapter over the IoT VLAN, encrypted with its per-device key. Field nodes only ever <em>report in</em> — a compromised node can command nothing.</li>
+      <li><b>② Sync.</b> The adapter — the node's <em>steward</em> — syncs the device into the Device Manager over mTLS, carrying its data class (presence = Class 3, temperature = Class 1).</li>
+      <li><b>③ Persist &amp; publish.</b> The state becomes a versioned fact in Memory (provenance: <code>adapter:…</code>) and a bus event — with Class 2+ payloads redacted before they touch the bus.</li>
+      <li><b>④ Watch.</b> Sentinel consumes the stream: a node going quiet, flapping, or anything anomalous raises an alert.</li>
+    </ol>
+  </div>
+  <div>
+    <div class="action-h">▼ Action: intent → actuator (amber ❶–❹)</div>
+    <ol>
+      <li><b>❶ Propose.</b> You (or the AI, grounded only in Memory/Devices and blind to Class 3) submit a plan — never a direct command.</li>
+      <li><b>❷ Decide.</b> The Planner applies default-deny policy; anything gated waits for your approval. Every plan and step is an immutable audit row.</li>
+      <li><b>❸ Route.</b> The Device Manager — which refuses everyone except the Planner and you — routes the command to the steward adapter.</li>
+      <li><b>❹ Actuate.</b> The adapter drives the ESP32's relay, reads back the new state… and that state re-enters the truth flow at ①.</li>
+    </ol>
+  </div>
+</div>
+
+<div class="notes">
+  <b>Security overlays on every arrow:</b> inside the hub, all traffic is mutual TLS with 24-hour certificates
+  issued by Core's CA; identity is cryptographic, revocation is a registry state change. Across the LAN boundary,
+  only the adapter holds the grant, field devices use per-device keys on an isolated VLAN, and firmware updates
+  arrive signed by the same CA (stored content-addressed in Assets, manifests verified by Skills).
+  Nothing anywhere on this diagram can reach the internet — egress is denied at the Docker network layer.
+  <b>Node configurations vary; the contract doesn't:</b> a bedroom sensor puck, a PoE garage controller, and a
+  Zigbee bridge all enter Atlas through the same three verbs — sync, report, actuate.
+</div>
+
+</div>
+</body>
+</html>

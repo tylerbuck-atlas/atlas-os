@@ -152,7 +152,7 @@ executed directly — the Planner validates every action, default-deny
 
 ```
 atlas-os/
-├── docs/                      # Architecture, security, privacy, contracts, eventbus, roadmap
+├── docs/                      # Architecture, security, privacy, deployment, nodes, contracts, roadmap
 ├── libs/
 │   └── atlas-sdk/             # Client library (registration + bus clients)
 ├── services/
