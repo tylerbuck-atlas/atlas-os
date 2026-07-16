@@ -18,7 +18,7 @@ among many, and never the source of truth.
 
 ## Status
 
-**Milestone 6 — Devices & Skills.** Implemented so far:
+**Milestone 7 — complete.** All eight Atlas services are implemented:
 
 - **Atlas Core** — service discovery, registration, health monitoring,
   configuration, token authentication + introspection, plugin loading,
@@ -46,8 +46,14 @@ among many, and never the source of truth.
   adapters own protocols; commands enter only through the Planner.
 - **Atlas Skill Manager** — signed, versioned capability packages,
   artifact-verified against the Asset Manager.
+- **Atlas AI** — reasons over governed truth (never Class 3), runs a
+  local-first backend, and proposes everything through the Planner. It
+  cannot act directly.
 
-Nothing more is implemented yet — deliberately. See [docs/roadmap.md](docs/roadmap.md).
+The operating system is built. See [docs/ai.md](docs/ai.md) and the
+[roadmap](docs/roadmap.md).
+
+
 
 ## Architecture at a glance
 
@@ -65,6 +71,7 @@ between services.
 | **Atlas Device Manager** | Physical/virtual device abstraction           | ✅ Milestone 6 |
 | **Atlas Asset Manager** | Files, manuals, documents                      | ✅ Milestone 4 |
 | **Atlas Sentinel**   | Security monitoring and enforcement               | ✅ Milestone 5 |
+| **Atlas AI**         | Reasons over truth; proposes via the Planner      | ✅ Milestone 7 |
 
 Full details in [docs/architecture.md](docs/architecture.md).
 
@@ -153,6 +160,7 @@ atlas-os/
 │   ├── sentinel/              # Atlas Sentinel (anomaly monitoring)
 │   ├── devices/               # Atlas Device Manager (adapters own protocols)
 │   ├── skills/                # Atlas Skill Manager (signed packages)
+│   ├── ai/                    # Atlas AI (reasons over truth; proposes only)
 │   └── examples/              # echo (service contract), virtual-adapter (adapter contract)
 ├── docker-compose.yml
 └── .env.example

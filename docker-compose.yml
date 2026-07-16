@@ -216,6 +216,40 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # The AI arrives last, as designed. Default backend is the built-in
+  # deterministic reasoner (zero model, zero egress). For real local
+  # inference, run Ollama on this machine and set ATLAS_AI_BACKEND=ollama:
+  # reaching the host is this service's explicit local-inference grant —
+  # uncomment extra_hosts below. Cloud model backends do not exist in
+  # this codebase; per docs/privacy.md they would be a separate, opt-in
+  # adapter, never eligible for Class-3 data.
+  atlas-ai:
+    build:
+      context: .
+      dockerfile: services/ai/Dockerfile
+    container_name: atlas-ai
+    environment:
+      ATLAS_BOOTSTRAP_TOKEN: ${ATLAS_BOOTSTRAP_TOKEN:?Set ATLAS_BOOTSTRAP_TOKEN in .env}
+      ATLAS_SECURITY_MODE: ${ATLAS_SECURITY_MODE:-mtls}
+      ATLAS_AI_CORE_URL: https://atlas-core:8000
+      ATLAS_AI_SELF_URL: https://atlas-ai:9000
+      ATLAS_AI_DATABASE_PATH: /app/data/atlas-ai.db
+      ATLAS_AI_TLS_DIR: /app/data/tls
+      ATLAS_AI_BACKEND: ${ATLAS_AI_BACKEND:-builtin}
+      ATLAS_AI_OLLAMA_URL: ${ATLAS_AI_OLLAMA_URL:-http://host.docker.internal:11434}
+      ATLAS_AI_OLLAMA_MODEL: ${ATLAS_AI_OLLAMA_MODEL:-llama3.2}
+    # extra_hosts:                       # ← the local-inference grant
+    #   - "host.docker.internal:host-gateway"
+    ports:
+      - "9000:9000"
+    volumes:
+      - atlas-ai-data:/app/data
+    networks: [atlas, atlas-edge]
+    depends_on:
+      atlas-core:
+        condition: service_healthy
+    restart: unless-stopped
+
   atlas-echo:
     build:
       context: .
@@ -255,3 +289,4 @@ volumes:
   atlas-sentinel-data:
   atlas-devices-data:
   atlas-skills-data:
+  atlas-ai-data:

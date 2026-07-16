@@ -71,8 +71,14 @@ the foundation is real.
 - LAN-adapter grant pattern documented in Compose (MQTT/Zigbee/Z-Wave
   arrive as explicit, individually-granted adapters)
 
-## Milestone 7 — The AI service
+## Milestone 7 — The AI service ✅
 
-- The LLM joins as a registered service like any other
-- Reads only from governed truth sources
-- All proposed actions flow through the Planner. No exceptions.
+- `atlas.ai` enrolls like any service; reads ONLY governed truth
+  (Memory + Devices, capped at Class 2 — intimate data never reaches
+  any model); pluggable local-first inference (builtin zero-model
+  default; local Ollama backend)
+- Model output is data: strictly parsed, injection-safe, degrades to
+  answer-only. Proposals flow to the Planner as plans in atlas.ai's
+  name — default-deny, operator approval, full audit. The AI holds no
+  code path that acts directly. No exceptions.
+- The operating system is complete: all eight services shipped.
