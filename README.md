@@ -49,14 +49,9 @@ among many, and never the source of truth.
 - **Atlas AI** — the model, last and least privileged: local inference,
   grounded in governed truth, Class-3 blind, acting only through the
   Planner's default-deny gate.
-- **Atlas AI** — reasons over governed truth (never Class 3), runs a
-  local-first backend, and proposes everything through the Planner. It
-  cannot act directly.
 
 The operating system is built. See [docs/ai.md](docs/ai.md) and the
 [roadmap](docs/roadmap.md).
-
-
 
 ## Architecture at a glance
 
@@ -75,7 +70,6 @@ between services.
 | **Atlas Device Manager** | Physical/virtual device abstraction           | ✅ Milestone 6 |
 | **Atlas Asset Manager** | Files, manuals, documents                      | ✅ Milestone 4 |
 | **Atlas Sentinel**   | Security monitoring and enforcement               | ✅ Milestone 5 |
-| **Atlas AI**         | Reasons over truth; proposes via the Planner      | ✅ Milestone 7 |
 
 Full details in [docs/architecture.md](docs/architecture.md).
 
